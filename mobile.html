@@ -1,0 +1,1705 @@
+<!DOCTYPE html>
+<html lang="pt-pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ZORYA - Telescópio Distribuído & IA</title>
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2 family=Montserrat:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Lucide Icons CDN -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <style>
+        /* --- Configurações Globais --- */
+        :root {
+            --bg-color: #03040b; 
+            --card-bg: rgba(13, 16, 32, 0.75); 
+            --text-primary: #ffffff; 
+            --text-secondary: #949ab0; 
+            --accent-color: #634eff; 
+            --accent-glow: rgba(99, 78, 255, 0.4);
+            --border-color: rgba(255, 255, 255, 0.08); 
+            --font-family: 'Montserrat', sans-serif;
+            --font-display: 'Space Grotesk', sans-serif;
+            --success-color: #44dd44;
+            --warning-color: #ffaa00;
+            --danger-color: #ff4444;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            font-family: var(--font-family);
+            display: flex; 
+            height: 100vh;
+            overflow: hidden; 
+            position: relative;
+        }
+
+        /* --- Estrelas no Fundo (Canvas) --- */
+        #starfield {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        /* --- Barra Lateral (Sidebar) --- */
+        .sidebar {
+            width: 95px;
+            background-color: #060713;
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 30px 0;
+            z-index: 10;
+            flex-shrink: 0;
+        }
+
+        .logo-icon {
+            font-size: 26px;
+            margin-bottom: 45px;
+            color: #ffffff;
+            cursor: pointer;
+            transition: transform 0.5s ease;
+            text-shadow: 0 0 10px var(--accent-glow);
+        }
+
+        .logo-icon:hover {
+            transform: rotate(180deg);
+        }
+
+        .nav-links {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+            flex-grow: 1; 
+            width: 100%;
+            align-items: center;
+        }
+
+        .nav-item {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-decoration: none;
+            color: var(--text-secondary);
+            font-size: 10px;
+            font-weight: 600;
+            transition: color 0.3s, transform 0.2s;
+            cursor: pointer;
+            border: none;
+            background: none;
+            font-family: var(--font-family);
+        }
+
+        .nav-item:hover {
+            color: var(--text-primary);
+            transform: translateY(-2px);
+        }
+
+        .nav-item.active {
+            color: var(--accent-color);
+        }
+
+        .nav-item .icon-wrapper {
+            padding: 12px; 
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 4px;
+            transition: background-color 0.3s, box-shadow 0.3s;
+            position: relative;
+        }
+
+        .nav-item.active .icon-wrapper {
+            background-color: rgba(99, 78, 255, 0.15); 
+            box-shadow: 0 0 15px rgba(99, 78, 255, 0.1);
+        }
+
+        .nav-item i {
+            width: 20px;
+            height: 20px;
+        }
+
+        .user-profile {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            border: 2px solid var(--border-color);
+            background-color: #1a1e36; 
+            overflow: hidden;
+            margin-top: auto; 
+            cursor: pointer;
+            transition: transform 0.3s, border-color 0.3s;
+        }
+        
+        .user-profile:hover {
+            transform: scale(1.1);
+            border-color: var(--accent-color);
+        }
+
+        .user-profile img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        /* --- Conteúdo Principal --- */
+        .main-content {
+            flex-grow: 1;
+            padding: 40px;
+            overflow-y: auto; 
+            scroll-behavior: smooth;
+            position: relative;
+            z-index: 2; 
+            display: flex;
+            flex-direction: column;
+            gap: 30px;
+        }
+
+        /* Cabeçalho */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 5;
+        }
+
+        .logo-text {
+            font-family: var(--font-display);
+            font-size: 24px;
+            font-weight: 700;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            background: linear-gradient(135deg, #ffffff 0%, #a4b2fc 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .top-nav {
+            display: flex;
+            gap: 30px;
+        }
+
+        .top-nav a {
+            text-decoration: none;
+            color: var(--text-secondary);
+            font-size: 13px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            position: relative;
+            transition: color 0.3s;
+        }
+
+        .top-nav a:hover, .top-nav a.active {
+            color: var(--text-primary);
+        }
+
+        .top-nav a::after {
+            content: '';
+            position: absolute;
+            width: 0;
+            height: 2px;
+            bottom: -6px;
+            left: 0;
+            background-color: var(--accent-color);
+            transition: width 0.3s ease;
+        }
+
+        .top-nav a:hover::after, .top-nav a.active::after {
+            width: 100%;
+        }
+
+        .header-status-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(68, 221, 68, 0.1);
+            border: 1px solid rgba(68, 221, 68, 0.2);
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--success-color);
+        }
+
+        .status-dot-blink {
+            width: 8px;
+            height: 8px;
+            background-color: var(--success-color);
+            border-radius: 50%;
+            box-shadow: 0 0 10px var(--success-color);
+            animation: blink 2s infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 0.4; }
+            50% { opacity: 1; }
+        }
+
+        /* --- VISÃO 1: MAPA DE CAPTURA DO TELESCÓPIO --- */
+        .page-view {
+            display: none;
+            flex-direction: column;
+            gap: 30px;
+        }
+
+        .page-view.active {
+            display: flex;
+            animation: fadeIn 0.5s ease forwards;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(15px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Painel do Telescópio */
+        .telescope-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 30px;
+        }
+
+        @media (max-width: 1024px) {
+            .telescope-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Área de Visualização Celeste / Simulação Giroscópio */
+        .sky-monitor-card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            padding: 25px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            position: relative;
+            overflow: hidden;
+            backdrop-filter: blur(12px);
+        }
+
+        .sky-canvas-wrapper {
+            width: 100%;
+            height: 480px;
+            background-color: #020207;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            position: relative;
+            overflow: hidden;
+            cursor: crosshair;
+        }
+
+        #sky-canvas {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Sobreposições do Monitor */
+        .hud-overlay {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            pointer-events: none;
+            font-family: var(--font-display);
+            background: rgba(3, 4, 11, 0.8);
+            padding: 12px 18px;
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .hud-overlay span {
+            font-size: 11px;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .hud-overlay b {
+            font-size: 15px;
+            color: var(--text-primary);
+        }
+
+        .hud-controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(3, 4, 11, 0.85);
+            padding: 12px 24px;
+            border-radius: 30px;
+            border: 1px solid var(--border-color);
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            pointer-events: auto;
+            backdrop-filter: blur(8px);
+        }
+
+        .hud-btn {
+            background: transparent;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            color: var(--text-primary);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .hud-btn:hover, .hud-btn.active {
+            background: var(--accent-color);
+            border-color: var(--accent-color);
+            box-shadow: 0 0 10px var(--accent-glow);
+        }
+
+        /* Painel Lateral de Dados da Rede */
+        .telescope-sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .metrics-card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            backdrop-filter: blur(12px);
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .metric-item {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .metric-label {
+            font-size: 10px;
+            color: var(--text-secondary);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .metric-value {
+            font-family: var(--font-display);
+            font-size: 20px;
+            font-weight: 700;
+        }
+
+        /* Feed de Eventos Celestiais */
+        .events-card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            height: 310px;
+            backdrop-filter: blur(12px);
+        }
+
+        .events-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            overflow-y: auto;
+            flex-grow: 1;
+            padding-right: 5px;
+        }
+
+        /* Custom Scrollbar */
+        .events-list::-webkit-scrollbar {
+            width: 4px;
+        }
+        .events-list::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .events-list::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 2px;
+        }
+
+        .event-item {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12px;
+            transition: all 0.3s;
+        }
+
+        .event-item:hover {
+            border-color: var(--accent-color);
+            background: rgba(99, 78, 255, 0.04);
+        }
+
+        .event-info {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+
+        .event-type-badge {
+            font-size: 9px;
+            text-transform: uppercase;
+            font-weight: 700;
+            padding: 2px 6px;
+            border-radius: 4px;
+            width: fit-content;
+        }
+
+        .badge-transitory {
+            background: rgba(255, 68, 68, 0.15);
+            color: var(--danger-color);
+            border: 1px solid rgba(255, 68, 68, 0.2);
+        }
+
+        .badge-mosaic {
+            background: rgba(134, 120, 255, 0.15);
+            color: var(--violet-2);
+            border: 1px solid rgba(134, 120, 255, 0.2);
+        }
+
+        .badge-resolution {
+            background: rgba(139, 180, 240, 0.15);
+            color: var(--cyan);
+            border: 1px solid rgba(139, 180, 240, 0.2);
+        }
+
+        /* --- VISÃO 2: COMUNIDADE & MOSAICOS GIGANTES --- */
+        .mosaics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 25px;
+        }
+
+        .mosaic-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            transition: all 0.3s;
+        }
+
+        .mosaic-card:hover {
+            transform: translateY(-5px);
+            border-color: var(--accent-color);
+            box-shadow: 0 10px 25px rgba(99, 78, 255, 0.15);
+        }
+
+        .mosaic-img-box {
+            width: 100%;
+            height: 180px;
+            position: relative;
+            overflow: hidden;
+            background-color: #03040b;
+        }
+
+        .mosaic-img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.5s;
+        }
+
+        .mosaic-card:hover .mosaic-img {
+            transform: scale(1.05);
+        }
+
+        .mosaic-meta-tag {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: rgba(3, 4, 11, 0.85);
+            border: 1px solid var(--border-color);
+            padding: 4px 10px;
+            border-radius: 15px;
+            font-size: 10px;
+            font-weight: 600;
+        }
+
+        .mosaic-details {
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            flex-grow: 1;
+        }
+
+        .mosaic-stat-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            color: var(--text-secondary);
+        }
+
+        /* --- ZORYA AI Assistant Widget --- */
+        .ai-widget {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+        }
+
+        .ai-bubble {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background-color: var(--accent-color);
+            box-shadow: 0 4px 20px var(--accent-glow);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .ai-bubble:hover {
+            transform: scale(1.1) rotate(10deg);
+        }
+
+        .ai-panel {
+            width: 380px;
+            height: 520px;
+            background-color: #0b0c1b;
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
+            display: none;
+            flex-direction: column;
+            overflow: hidden;
+            margin-bottom: 15px;
+            transform-origin: bottom right;
+            animation: zoomIn 0.3s ease;
+        }
+
+        @keyframes zoomIn {
+            from { opacity: 0; transform: scale(0.85); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        .ai-header {
+            background-color: #12142e;
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .ai-header-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .ai-header-info h4 {
+            font-family: var(--font-display);
+            font-weight: 600;
+            font-size: 15px;
+        }
+
+        .ai-status {
+            font-size: 11px;
+            color: #44dd44;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .ai-status-dot {
+            width: 6px;
+            height: 6px;
+            background-color: #44dd44;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .ai-close {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: color 0.3s;
+        }
+
+        .ai-close:hover {
+            color: var(--text-primary);
+        }
+
+        .ai-messages {
+            flex-grow: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .ai-message {
+            max-width: 85%;
+            padding: 12px 16px;
+            border-radius: 16px;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .ai-message.user {
+            background-color: var(--accent-color);
+            color: var(--text-primary);
+            align-self: flex-end;
+            border-bottom-right-radius: 4px;
+        }
+
+        .ai-message.assistant {
+            background-color: rgba(255, 255, 255, 0.05);
+            color: #e2e8f0;
+            align-self: flex-start;
+            border-bottom-left-radius: 4px;
+            border: 1px solid var(--border-color);
+        }
+
+        .ai-input-area {
+            padding: 15px 20px;
+            border-top: 1px solid var(--border-color);
+            background-color: #0d0f27;
+            display: flex;
+            gap: 10px;
+        }
+
+        .ai-input {
+            flex-grow: 1;
+            background-color: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border-color);
+            border-radius: 24px;
+            padding: 10px 18px;
+            color: var(--text-primary);
+            font-family: var(--font-family);
+            font-size: 13px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        .ai-input:focus {
+            border-color: var(--accent-color);
+        }
+
+        .ai-send-btn {
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            background-color: var(--accent-color);
+            border: none;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        .ai-send-btn:hover {
+            background-color: #4f3dd4;
+        }
+
+        /* --- Modais --- */
+        .modal {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(3, 4, 11, 0.85);
+            backdrop-filter: blur(10px);
+            z-index: 1000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .modal-container {
+            background-color: #0e1122;
+            border: 1px solid var(--border-color);
+            border-radius: 24px;
+            width: 100%;
+            max-width: 550px;
+            overflow: hidden;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
+            animation: zoomIn 0.3s ease;
+        }
+
+        .modal-body {
+            padding: 30px;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 25px;
+            right: 25px;
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: color 0.3s;
+        }
+
+        .modal-close:hover {
+            color: var(--text-primary);
+        }
+
+        /* Simulação do Giroscópio do Telemóvel */
+        .gyro-simulation-box {
+            background: #03040b;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .phone-frame {
+            width: 120px;
+            height: 220px;
+            border: 4px solid #3a3f58;
+            border-radius: 24px;
+            position: relative;
+            background: #0d1020;
+            transition: transform 0.1s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .phone-screen-camera {
+            width: 100%;
+            height: 80%;
+            background: radial-gradient(circle, #2e1e5c 0%, #03040b 100%);
+            border-radius: 4px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-secondary);
+            font-size: 10px;
+            text-align: center;
+            padding: 10px;
+        }
+
+        .gyro-axis-indicator {
+            font-size: 12px;
+            font-family: var(--font-display);
+            display: flex;
+            gap: 15px;
+        }
+
+        /* --- Responsividade --- */
+        @media (max-width: 768px) {
+            body { flex-direction: column; }
+            .sidebar { width: 100%; height: 75px; flex-direction: row; padding: 0 20px; justify-content: space-between; border-right: none; border-bottom: 1px solid var(--border-color); }
+            .logo-icon { margin-bottom: 0; }
+            .nav-links { flex-direction: row; gap: 10px; justify-content: center; }
+            .nav-item .icon-wrapper { margin-bottom: 0; padding: 8px; }
+            .nav-item span { display: none; }
+            .user-profile { margin-top: 0; width: 38px; height: 38px; }
+            .main-content { padding: 25px; }
+            .top-nav { display: none; }
+            .ai-panel { width: calc(100vw - 40px); right: 20px; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Fundo de Estrelas -->
+    <canvas id="starfield"></canvas>
+
+    <!-- Sidebar -->
+    <nav class="sidebar">
+        <div class="logo-icon" onclick="switchView('inicio')">&#x2726;</div> 
+        <div class="nav-links">
+            <button class="nav-item active" id="btn-nav-inicio" onclick="switchView('inicio')">
+                <div class="icon-wrapper"><i data-lucide="aperture"></i></div>
+                <span>Telescópio</span>
+            </button>
+            <button class="nav-item" id="btn-nav-mosaicos" onclick="switchView('mosaicos')">
+                <div class="icon-wrapper"><i data-lucide="images"></i></div>
+                <span>Mosaicos IA</span>
+            </button>
+            <button class="nav-item" id="btn-nav-transitorios" onclick="switchView('transitorios')">
+                <div class="icon-wrapper"><i data-lucide="radio"></i></div>
+                <span>Transitórios</span>
+            </button>
+        </div>
+        <div class="user-profile" onclick="openProfileModal()">
+            <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=150&auto=format&fit=crop" alt="Imagem de Perfil">
+        </div>
+    </nav>
+
+    <!-- Conteúdo Principal -->
+    <main class="main-content">
+        <!-- Cabeçalho -->
+        <header class="header">
+            <div>
+                <div class="logo-text">Zorya Distribuído</div>
+                <p style="font-size: 11px; color: var(--text-secondary); margin-top: 2px;">Rede Colaborativa de Telescópios Mobile</p>
+            </div>
+            <nav class="top-nav">
+                <a href="#" class="active" onclick="switchView('inicio')">REDE DE SENSORES</a>
+                <a href="#" onclick="switchView('mosaicos')">GALERIA DE MOSAICOS</a>
+                <a href="#" onclick="switchView('transitorios')">NOTIFICAÇÕES DE TRANSITÓRIOS</a>
+            </nav>
+            <div class="header-status-badge">
+                <span class="status-dot-blink"></span>
+                <span id="nodes-count-header">1,482 Terminais Ativos</span>
+            </div>
+        </header>
+
+        <!-- VISÃO 1: REDE DE SENSORES / OBSERVAÇÃO -->
+        <div id="view-inicio" class="page-view active">
+            <div class="telescope-grid">
+                
+                <!-- Monitor do Espaço (Canvas + HUD) -->
+                <div class="sky-monitor-card">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <h2 style="font-family: var(--font-display); font-size: 20px;">Painel de Alinhamento Celeste</h2>
+                            <p style="color: var(--text-secondary); font-size: 12px; margin-top: 2px;">Arraste para rotacionar o telescópio ou simule giroscópio de smartphone.</p>
+                        </div>
+                        <span style="font-size: 11px; background: rgba(99, 78, 255, 0.1); padding: 4px 10px; border-radius: 12px; color: var(--violet-2); font-weight: 600;">Modo Cooperativo</span>
+                    </div>
+
+                    <div class="sky-canvas-wrapper">
+                        <canvas id="sky-canvas"></canvas>
+                        
+                        <!-- HUD Overlay com Coordenadas do Celular Simulado -->
+                        <div class="hud-overlay">
+                            <span>SISTEMA DE ORIENTAÇÃO</span>
+                            <b>DEC: <span id="hud-dec">+23.412°</span></b>
+                            <b>RA: <span id="hud-ra">12h 45m 12s</span></b>
+                            <span style="color: var(--success-color); font-size: 10px; margin-top: 4px;">&bull; Sincronizado por IA</span>
+                        </div>
+
+                        <!-- Controles no Fundo do Monitor -->
+                        <div class="hud-controls">
+                            <button class="hud-btn active" id="btn-mode-pointing" onclick="setControlMode('pointing')">
+                                <i data-lucide="navigation"></i> Apontar Celular
+                            </button>
+                            <button class="hud-btn" id="btn-mode-coadd" onclick="setControlMode('coadd')">
+                                <i data-lucide="copy"></i> Super-Resolução (Stacking)
+                            </button>
+                            <button class="hud-btn" onclick="openSimulationModal()">
+                                <i data-lucide="tablet-smartphone"></i> Testar Giroscópio
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Barra Lateral de Dados -->
+                <div class="telescope-sidebar">
+                    
+                    <!-- Painel de Métricas em Tempo Real -->
+                    <div class="metrics-card">
+                        <h3 style="font-family: var(--font-display); font-size: 16px;">Consolidação Co-Addition</h3>
+                        <div class="metrics-grid">
+                            <div class="metric-item">
+                                <span class="metric-label">Fotos Empilhadas</span>
+                                <div class="metric-value" id="metrics-stacked">4,582</div>
+                            </div>
+                            <div class="metric-item">
+                                <span class="metric-label">Ganho de Resolução</span>
+                                <div class="metric-value" style="color: var(--cyan);" id="metrics-gain">6.4x (SuperRes)</div>
+                            </div>
+                            <div class="metric-item">
+                                <span class="metric-label">Mosaico Atual</span>
+                                <div class="metric-value" style="font-size: 15px; font-weight:600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Nebula de Orion v2</div>
+                            </div>
+                            <div class="metric-item">
+                                <span class="metric-label">Ruído Sinal (SNR)</span>
+                                <div class="metric-value" style="color: var(--success-color);">+42 dB</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Feed de Eventos Celestiais em Tempo Real -->
+                    <div class="events-card">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <h3 style="font-family: var(--font-display); font-size: 16px;">Deteção de Eventos</h3>
+                            <button onclick="simulateNewEvent()" style="background: none; border: none; color: var(--accent-color); font-size: 11px; font-weight: 600; cursor: pointer;">Forçar Scan</button>
+                        </div>
+                        <div class="events-list" id="events-list">
+                            <!-- Eventos inseridos dinamicamente -->
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+        <!-- VISÃO 2: GALERIA DE MOSAICOS DE IA GIGANTES -->
+        <div id="view-mosaicos" class="page-view">
+            <div style="display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 15px;">
+                <div>
+                    <h1 class="section-title">Mosaicos Gigantes de IA</h1>
+                    <p class="section-desc">Mosaicos contínuos reconstruídos através de milhões de amostras de telemóveis calibradas espacialmente.</p>
+                </div>
+                <button class="btn btn-primary" onclick="triggerSimulationRebuild()">Forçar Reconstrução Global</button>
+            </div>
+
+            <div class="mosaics-grid" id="mosaics-grid">
+                <!-- Mosaico 1 -->
+                <div class="mosaic-card">
+                    <div class="mosaic-img-box">
+                        <img src="https://images.unsplash.com/photo-1462331940025-496dfbfc7564?q=80&w=600&auto=format&fit=crop" class="mosaic-img" alt="Orion Nebula Mosaic">
+                        <span class="mosaic-meta-tag badge-mosaic">Nebulosa</span>
+                    </div>
+                    <div class="mosaic-details">
+                        <h3 style="font-family: var(--font-display); font-size: 17px;">Complexo de Órion</h3>
+                        <p style="font-size: 13px; color: var(--text-secondary); line-height: 1.5;">Reconstruído a partir de 12.840 imagens individuais utilizando IA geo-referenciada.</p>
+                        <div class="mosaic-stat-row">
+                            <span>Resolução Final: <b>2.4 Gigapixels</b></span>
+                            <span>Sinal/Ruído: <b>+48.2 dB</b></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Mosaico 2 -->
+                <div class="mosaic-card">
+                    <div class="mosaic-img-box">
+                        <img src="https://images.unsplash.com/photo-1516339901601-2e1b62dc0c45?q=80&w=600&auto=format&fit=crop" class="mosaic-img" alt="Andromeda Galaxy Mosaic">
+                        <span class="mosaic-meta-tag badge-resolution">Galáxia</span>
+                    </div>
+                    <div class="mosaic-details">
+                        <h3 style="font-family: var(--font-display); font-size: 17px;">M31 - Galáxia de Andrómeda</h3>
+                        <p style="font-size: 13px; color: var(--text-secondary); line-height: 1.5;">Processado via Shift-and-Add dinâmico para destacar as faixas de poeira escuras.</p>
+                        <div class="mosaic-stat-row">
+                            <span>Resolução Final: <b>1.8 Gigapixels</b></span>
+                            <span>Sinal/Ruído: <b>+44.1 dB</b></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Mosaico 3 -->
+                <div class="mosaic-card">
+                    <div class="mosaic-img-box">
+                        <img src="https://images.unsplash.com/photo-1614730321146-b6fa6a46bcb4?q=80&w=600&auto=format&fit=crop" class="mosaic-img" alt="Earth Sky Mosaic">
+                        <span class="mosaic-meta-tag badge-transitory">Via Láctea</span>
+                    </div>
+                    <div class="mosaic-details">
+                        <h3 style="font-family: var(--font-display); font-size: 17px;">Arco da Via Láctea do Hemisfério Sul</h3>
+                        <p style="font-size: 13px; color: var(--text-secondary); line-height: 1.5;">Fusão global de sensores móveis localizados no Brasil, Chile e Austrália.</p>
+                        <div class="mosaic-stat-row">
+                            <span>Resolução Final: <b>4.1 Gigapixels</b></span>
+                            <span>Sinal/Ruído: <b>+51.8 dB</b></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- VISÃO 3: TRANSITÓRIOS E COMPARAÇÃO DE ÉPOCAS -->
+        <div id="view-transitorios" class="page-view">
+            <div>
+                <h1 class="section-title">Fenómenos Transitórios & Mudanças Celestiais</h1>
+                <p class="section-desc">Identificação em tempo real de variações de brilho, passagem de satélites e novas explosões estelares comparando as épocas das capturas.</p>
+            </div>
+
+            <div style="background-color: var(--card-bg); border: 1px solid var(--border-color); border-radius: 20px; padding: 30px; display: flex; flex-direction: column; gap: 20px;">
+                <h3 style="font-family: var(--font-display); font-size: 18px;">Simulador Comparador de Épocas (Blink Comparator)</h3>
+                <p style="color: var(--text-secondary); font-size: 13px;">O telescópio distribuído detecta e analisa variações de brilho de astros entre diferentes períodos de observação para catalogar supernovas e asteroides.</p>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; text-align: center;">
+                    <div style="background: #020207; padding: 15px; border-radius: 12px; border: 1px solid var(--border-color);">
+                        <span style="font-size: 11px; color: var(--text-secondary); font-weight: 600;">ÉPOCA A (07/2024)</span>
+                        <div style="position: relative; height: 250px; overflow:hidden; border-radius:8px; margin-top: 10px; background:radial-gradient(circle, #0e1122 0%, #03040b 100%);">
+                            <canvas id="blink-canvas-a" style="width: 100%; height:100%;"></canvas>
+                        </div>
+                    </div>
+                    <div style="background: #020207; padding: 15px; border-radius: 12px; border: 1px solid var(--border-color);">
+                        <span style="font-size: 11px; color: var(--text-secondary); font-weight: 600;">ÉPOCA B (ATUAL)</span>
+                        <div style="position: relative; height: 250px; overflow:hidden; border-radius:8px; margin-top: 10px; background:radial-gradient(circle, #0e1122 0%, #03040b 100%);">
+                            <canvas id="blink-canvas-b" style="width: 100%; height:100%;"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+                    <button class="btn btn-primary" onclick="runBlinkComparison()">Análise de Diferença de Brilho</button>
+                    <div id="blink-status-text" style="font-size: 13px; font-weight:600; color: var(--warning-color);">
+                        Aguardando início de processamento diferencial de imagens...
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- ZORYA AI Assistant Widget -->
+    <div class="ai-widget">
+        <!-- Painel AI -->
+        <div class="ai-panel" id="ai-panel">
+            <div class="ai-header">
+                <div class="ai-header-info">
+                    <div style="background-color: var(--accent-color); width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                        <i data-lucide="sparkles" style="color: #fff; width: 16px;"></i>
+                    </div>
+                    <div>
+                        <h4>Zorya Astrofísica AI</h4>
+                        <div class="ai-status">
+                            <span class="ai-status-dot"></span> Online
+                        </div>
+                    </div>
+                </div>
+                <button class="ai-close" onclick="toggleAIPanel()"><i data-lucide="x" style="width: 18px;"></i></button>
+            </div>
+            
+            <div class="ai-messages" id="ai-messages">
+                <div class="ai-message assistant">
+                    Olá! Sou a IA da Zorya. Consigo explicar-lhe a astrofísica por detrás de cada supernova detectada, os algoritmos de mosaicos gigantes ou o funcionamento das técnicas de Co-Addition móvel. Pergunte-me qualquer coisa! 🌌
+                </div>
+            </div>
+            
+            <div class="ai-input-area">
+                <input type="text" id="ai-user-input" class="ai-input" placeholder="Perguntar sobre processamento de dados do telescópio..." onkeydown="handleAIKeyPress(event)">
+                <button class="ai-send-btn" onclick="sendToAI()"><i data-lucide="send" style="width: 16px;"></i></button>
+            </div>
+        </div>
+
+        <!-- Bolha AI -->
+        <div class="ai-bubble" onclick="toggleAIPanel()" title="Falar com a IA">
+            <i data-lucide="sparkles" style="color: #fff; width: 24px; height: 24px;"></i>
+        </div>
+    </div>
+
+    <!-- MODAL 1: Simulação Giroscópio Celular -->
+    <div class="modal" id="simulation-modal">
+        <div class="modal-container">
+            <div class="modal-body">
+                <button class="modal-close" onclick="closeSimulationModal()"><i data-lucide="x"></i></button>
+                <h3 style="font-family: var(--font-display);">Simulação Giroscópica</h3>
+                <p style="color: var(--text-secondary); font-size:13px;">Mova os sliders para simular as coordenadas espaciais e a orientação 3D do seu telemóvel.</p>
+                
+                <div class="gyro-simulation-box">
+                    <div class="phone-frame" id="sim-phone">
+                        <div class="phone-screen-camera">
+                            <i data-lucide="camera" style="width:24px; margin-bottom:8px;"></i>
+                            Sinal do Sensor Celular Ativo
+                        </div>
+                    </div>
+                    <div class="gyro-axis-indicator">
+                        <span>PITCH (Dec): <b id="val-pitch">0°</b></span>
+                        <span>YAW (RA): <b id="val-yaw">0°</b></span>
+                    </div>
+                </div>
+
+                <div style="display:flex; flex-direction:column; gap:12px;">
+                    <div>
+                        <span style="font-size:11px; color:var(--text-secondary);">Simular Rotação Vertical (PITCH)</span>
+                        <input type="range" id="control-pitch" min="-90" max="90" value="0" style="width:100%; accent-color: var(--accent-color);" oninput="updateGiroscopioSim()">
+                    </div>
+                    <div>
+                        <span style="font-size:11px; color:var(--text-secondary);">Simular Rotação Horizontal (YAW)</span>
+                        <input type="range" id="control-yaw" min="0" max="360" value="180" style="width:100%; accent-color: var(--accent-color);" oninput="updateGiroscopioSim()">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 2: Perfil do Nodo -->
+    <div class="modal" id="profile-modal">
+        <div class="modal-container" style="max-width: 450px;">
+            <div class="modal-body" style="text-align:center; display:flex; flex-direction:column; align-items:center; gap:20px;">
+                <button class="modal-close" onclick="closeProfileModal()"><i data-lucide="x"></i></button>
+                <div style="width: 90px; height: 90px; border-radius: 50%; overflow:hidden; border: 3px solid var(--accent-color); box-shadow: 0 0 15px var(--accent-glow);">
+                    <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=150&auto=format&fit=crop" style="width:100%; height:100%; object-fit:cover;">
+                </div>
+                <div>
+                    <h3 style="font-family: var(--font-display);">Clara Fernandes</h3>
+                    <p style="color:var(--text-secondary); font-size:13px; margin-top:4px;">Nível de Contribuição: Cosmonauta</p>
+                </div>
+                <div style="width: 100%; background:rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius:12px; padding:15px; display:flex; justify-content:space-around;">
+                    <div>
+                        <span style="font-size:11px; color:var(--text-secondary)">Fotos Enviadas</span>
+                        <h4 style="font-family: var(--font-display); margin-top:5px;">2,482</h4>
+                    </div>
+                    <div>
+                        <span style="font-size:11px; color:var(--text-secondary)">Mosaicos Ajudados</span>
+                        <h4 style="font-family: var(--font-display); margin-top:5px;">14</h4>
+                    </div>
+                </div>
+                <button class="btn btn-primary" style="width:100%;" onclick="closeProfileModal()">Visualizar Minhas Coordenadas Ativas</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- SCRIPT PRINCIPAL -->
+    <script>
+        // Inicializar Lucide Icons
+        lucide.createIcons();
+
+        let skyCanvas, skyCtx;
+        let starfieldCanvas, starfieldCtx;
+        let globalMode = 'pointing'; // 'pointing' ou 'coadd'
+        let selectedObject = null;
+
+        // Dados Celestiais Simulados
+        let celestialObjects = [
+            { x: 150, y: 150, radius: 15, name: 'Nebula de Órion', type: 'Mosaico Ativo', baseR: 120, baseG: 80, baseB: 220, stacked: 12840, res: '2.4Gpx' },
+            { x: 450, y: 250, radius: 25, name: 'Galáxia de Andrómeda', type: 'Galáxia', baseR: 100, baseG: 160, baseB: 240, stacked: 9480, res: '1.8Gpx' },
+            { x: 300, y: 350, radius: 8, name: 'Supernova SN2026z', type: 'Fenómeno Transitório', baseR: 255, baseG: 80, baseB: 80, stacked: 450, res: '512Mpx' }
+        ];
+
+        // Eventos de feed simulados
+        let feedEvents = [
+            { id: 1, type: 'transitory', desc: 'Supernova detetada na Galáxia M101 por 14 smartphones conectados.', time: 'Há 2 min' },
+            { id: 2, type: 'mosaic', desc: 'Mosaico de Órion estendido em 4 graus de arco com novos dados.', time: 'Há 12 min' },
+            { id: 3, type: 'resolution', desc: 'Algoritmo Co-Addition reduziu ruído em M31 para SNR +44 dB.', time: 'Há 45 min' }
+        ];
+
+        window.addEventListener('DOMContentLoaded', () => {
+            initStarfield();
+            initSkyMonitor();
+            renderEventsFeed();
+            initBlinkCanvases();
+        });
+
+        // 1. CANVAS ESTRELAS DE FUNDO DA APP
+        function initStarfield() {
+            starfieldCanvas = document.getElementById('starfield');
+            starfieldCtx = starfieldCanvas.getContext('2d');
+            resizeStarfield();
+            window.addEventListener('resize', resizeStarfield);
+
+            // Gerar fundo estático e brilhante
+            let stars = [];
+            for (let i = 0; i < 200; i++) {
+                stars.push({
+                    x: Math.random() * starfieldCanvas.width,
+                    y: Math.random() * starfieldCanvas.height,
+                    radius: Math.random() * 1.2,
+                    alpha: Math.random()
+                });
+            }
+
+            function draw() {
+                starfieldCtx.clearRect(0, 0, starfieldCanvas.width, starfieldCanvas.height);
+                starfieldCtx.fillStyle = '#ffffff';
+                stars.forEach(s => {
+                    starfieldCtx.globalAlpha = Math.abs(Math.sin(s.alpha));
+                    starfieldCtx.beginPath();
+                    starfieldCtx.arc(s.x, s.y, s.radius, 0, Math.PI * 2);
+                    starfieldCtx.fill();
+                    s.alpha += 0.005;
+                });
+                requestAnimationFrame(draw);
+            }
+            draw();
+        }
+
+        function resizeStarfield() {
+            if (starfieldCanvas) {
+                starfieldCanvas.width = window.innerWidth;
+                starfieldCanvas.height = window.innerHeight;
+            }
+        }
+
+        // 2. MONITOR CELESTE E GIROSCÓPIO SIMULADO
+        function initSkyMonitor() {
+            skyCanvas = document.getElementById('sky-canvas');
+            skyCtx = skyCanvas.getContext('2d');
+            resizeSkyCanvas();
+
+            window.addEventListener('resize', resizeSkyCanvas);
+            
+            // Eventos interativos de clique no canvas do telescópio
+            skyCanvas.addEventListener('click', handleSkyCanvasClick);
+
+            function update() {
+                if (!skyCanvas) return;
+                skyCtx.clearRect(0, 0, skyCanvas.width, skyCanvas.height);
+
+                // Desenhar grade radial simulando lente ocular / telescópio
+                const centerX = skyCanvas.width / 2;
+                const centerY = skyCanvas.height / 2;
+                
+                // Círculos concêntricos de orientação
+                skyCtx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
+                skyCtx.lineWidth = 1;
+                for (let r = 50; r <= 350; r += 50) {
+                    skyCtx.beginPath();
+                    skyCtx.arc(centerX, centerY, r, 0, Math.PI * 2);
+                    skyCtx.stroke();
+                }
+
+                // Cruz de pontaria telescópica
+                skyCtx.beginPath();
+                skyCtx.moveTo(centerX - 200, centerY);
+                skyCtx.lineTo(centerX + 200, centerY);
+                skyCtx.moveTo(centerX, centerY - 200);
+                skyCtx.lineTo(centerX, centerY + 200);
+                skyCtx.stroke();
+
+                // Desenhar astros e mosaicos ativos
+                celestialObjects.forEach(obj => {
+                    // Gradiente luminoso
+                    let glow = skyCtx.createRadialGradient(obj.x, obj.y, 2, obj.x, obj.y, obj.radius * 3);
+                    glow.addColorStop(0, `rgba(${obj.baseR}, ${obj.baseG}, ${obj.baseB}, 1)`);
+                    glow.addColorStop(0.3, `rgba(${obj.baseR}, ${obj.baseG}, ${obj.baseB}, 0.5)`);
+                    glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+
+                    skyCtx.fillStyle = glow;
+                    skyCtx.beginPath();
+                    skyCtx.arc(obj.x, obj.y, obj.radius * 3, 0, Math.PI * 2);
+                    skyCtx.fill();
+
+                    // Círculo central do núcleo do objeto
+                    skyCtx.fillStyle = '#ffffff';
+                    skyCtx.beginPath();
+                    skyCtx.arc(obj.x, obj.y, obj.radius * 0.4, 0, Math.PI * 2);
+                    skyCtx.fill();
+
+                    // Seletor se focado
+                    if (selectedObject === obj) {
+                        skyCtx.strokeStyle = '#6a7cff';
+                        skyCtx.lineWidth = 2;
+                        skyCtx.beginPath();
+                        skyCtx.arc(obj.x, obj.y, obj.radius * 1.5, 0, Math.PI * 2);
+                        skyCtx.stroke();
+                    }
+
+                    // Nome do objeto
+                    skyCtx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+                    skyCtx.font = '11px Space Grotesk';
+                    skyCtx.textAlign = 'center';
+                    skyCtx.fillText(obj.name, obj.x, obj.y - obj.radius - 12);
+                });
+
+                requestAnimationFrame(update);
+            }
+            update();
+        }
+
+        function resizeSkyCanvas() {
+            if (skyCanvas) {
+                skyCanvas.width = skyCanvas.parentElement.clientWidth;
+                skyCanvas.height = skyCanvas.parentElement.clientHeight;
+            }
+        }
+
+        function handleSkyCanvasClick(e) {
+            const rect = skyCanvas.getBoundingClientRect();
+            const clickX = e.clientX - rect.left;
+            const clickY = e.clientY - rect.top;
+
+            let clickedObj = null;
+            celestialObjects.forEach(obj => {
+                const dist = Math.hypot(obj.x - clickX, obj.y - clickY);
+                if (dist < obj.radius * 2) {
+                    clickedObj = obj;
+                }
+            });
+
+            if (clickedObj) {
+                selectedObject = clickedObj;
+                // Atualizar dados de monitor do HUD
+                document.getElementById('metrics-stacked').textContent = clickedObj.stacked.toLocaleString();
+                document.getElementById('metrics-gain').textContent = clickedObj.res;
+                
+                // Mudar informações do HUD
+                const decVal = (20 + (clickedObj.x / 20)).toFixed(3);
+                const raHours = Math.floor(clickedObj.y / 30);
+                const raMins = Math.floor((clickedObj.y % 30) * 2);
+                document.getElementById('hud-dec').textContent = `+${decVal}°`;
+                document.getElementById('hud-ra').textContent = `${raHours}h ${raMins}m 15s`;
+            } else {
+                selectedObject = null;
+            }
+        }
+
+        function setControlMode(mode) {
+            globalMode = mode;
+            document.getElementById('btn-mode-pointing').classList.remove('active');
+            document.getElementById('btn-mode-coadd').classList.remove('active');
+            
+            if (mode === 'pointing') {
+                document.getElementById('btn-mode-pointing').classList.add('active');
+            } else {
+                document.getElementById('btn-mode-coadd').classList.add('active');
+            }
+        }
+
+        // 3. CONTROLE DE PÁGINAS (SINGLE PAGE NAVIGATION)
+        function switchView(viewName) {
+            document.querySelectorAll('.page-view').forEach(view => {
+                view.classList.remove('active');
+            });
+            const target = document.getElementById('view-' + viewName);
+            if (target) target.classList.add('active');
+
+            // Sincronizar classes de navegação da sidebar
+            document.querySelectorAll('.nav-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            
+            if (viewName === 'inicio') document.getElementById('btn-nav-inicio').classList.add('active');
+            else if (viewName === 'mosaicos') document.getElementById('btn-nav-mosaicos').classList.add('active');
+            else if (viewName === 'transitorios') document.getElementById('btn-nav-transitorios').classList.add('active');
+        }
+
+        // 4. FEED DE EVENTOS E DETECTORES
+        function renderEventsFeed() {
+            const listEl = document.getElementById('events-list');
+            listEl.innerHTML = '';
+            
+            feedEvents.forEach(evt => {
+                const item = document.createElement('div');
+                item.className = 'event-item';
+                
+                let badgeClass = 'badge-transitory';
+                let badgeText = 'TR';
+                if (evt.type === 'mosaic') { badgeClass = 'badge-mosaic'; badgeText = 'MOSAICO'; }
+                if (evt.type === 'resolution') { badgeClass = 'badge-resolution'; badgeText = 'CO-ADD'; }
+
+                item.innerHTML = `
+                    <div class="event-info">
+                        <span class="event-type-badge ${badgeClass}">${badgeText}</span>
+                        <p style="font-weight: 500; margin-top: 5px; color: #fff;">${evt.desc}</p>
+                    </div>
+                    <span style="color: var(--text-secondary); font-size: 10px; white-space: nowrap;">${evt.time}</span>
+                `;
+                listEl.appendChild(item);
+            });
+        }
+
+        function simulateNewEvent() {
+            const types = ['transitory', 'mosaic', 'resolution'];
+            const rType = types[Math.floor(Math.random() * types.length)];
+            let newDesc = '';
+
+            if (rType === 'transitory') {
+                newDesc = `Asteroide em trânsito detetado na região de Ursa Maior em RA: ${Math.floor(Math.random() * 24)}h.`;
+            } else if (rType === 'mosaic') {
+                newDesc = `Mosaico de Andrómeda ampliado com novas amostras enviadas de celular no Hemisfério Sul.`;
+            } else {
+                newDesc = `Algoritmo Stack-and-Shift alcançou resolução ideal em infravermelho simulado.`;
+            }
+
+            const newEvt = {
+                id: Date.now(),
+                type: rType,
+                desc: newDesc,
+                time: 'Agora mesmo'
+            };
+
+            feedEvents.unshift(newEvt);
+            if (feedEvents.length > 5) feedEvents.pop();
+            renderEventsFeed();
+        }
+
+        // 5. BLINK COMPARATOR (PÁGINA DE TRANSITÓRIOS E COMPARAÇÃO)
+        let blinkCanvasA, blinkCtxA;
+        let blinkCanvasB, blinkCtxB;
+
+        function initBlinkCanvases() {
+            blinkCanvasA = document.getElementById('blink-canvas-a');
+            blinkCtxA = blinkCanvasA.getContext('2d');
+            blinkCanvasB = document.getElementById('blink-canvas-b');
+            blinkCtxB = blinkCanvasB.getContext('2d');
+
+            drawBlinkSky(blinkCtxA, false);
+            drawBlinkSky(blinkCtxB, true); // True inclui a nova supernova transitória!
+        }
+
+        function drawBlinkSky(ctx, showSupernova) {
+            ctx.clearRect(0, 0, 300, 250);
+            
+            // Fundo estrelado estático do comparador
+            ctx.fillStyle = '#ffffff';
+            let starsSeed = [
+                {x: 40, y: 50, r: 1}, {x: 220, y: 40, r: 1.5},
+                {x: 180, y: 190, r: 1}, {x: 90, y: 150, r: 2},
+                {x: 260, y: 130, r: 0.8}, {x: 140, y: 90, r: 1.2}
+            ];
+            starsSeed.forEach(s => {
+                ctx.beginPath();
+                ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            // Galáxia de fundo difusa
+            let glow = ctx.createRadialGradient(150, 125, 5, 150, 125, 45);
+            glow.addColorStop(0, 'rgba(100, 160, 240, 0.6)');
+            glow.addColorStop(0.5, 'rgba(134, 120, 255, 0.2)');
+            glow.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = glow;
+            ctx.beginPath();
+            ctx.arc(150, 125, 45, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Supernova de Época B (Ativa somente se showSupernova for true)
+            if (showSupernova) {
+                let sGlow = ctx.createRadialGradient(130, 110, 2, 130, 110, 15);
+                sGlow.addColorStop(0, '#ff4444');
+                sGlow.addColorStop(0.5, 'rgba(255, 68, 68, 0.4)');
+                sGlow.addColorStop(1, 'rgba(0,0,0,0)');
+                ctx.fillStyle = sGlow;
+                ctx.beginPath();
+                ctx.arc(130, 110, 15, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(130, 110, 3, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        let isComparing = false;
+        function runBlinkComparison() {
+            if (isComparing) return;
+            isComparing = true;
+            
+            const statusText = document.getElementById('blink-status-text');
+            statusText.textContent = "Alinhando pixel espacial de ambas as épocas...";
+            statusText.style.color = 'var(--warning-color)';
+
+            setTimeout(() => {
+                statusText.textContent = "Executando deteção de diferença algorítmica de IA...";
+                
+                // Piscar/Blink entre canva A e B para simular visualmente a análise
+                let step = 0;
+                let interval = setInterval(() => {
+                    const canvasAWrapper = blinkCanvasA.parentElement;
+                    const canvasBWrapper = blinkCanvasB.parentElement;
+                    
+                    if (step % 2 === 0) {
+                        canvasAWrapper.style.borderColor = 'var(--accent-color)';
+                        canvasBWrapper.style.borderColor = 'transparent';
+                    } else {
+                        canvasAWrapper.style.borderColor = 'transparent';
+                        canvasBWrapper.style.borderColor = 'var(--danger-color)';
+                    }
+                    step++;
+                    if (step > 6) {
+                        clearInterval(interval);
+                        canvasAWrapper.style.borderColor = 'var(--border-color)';
+                        canvasBWrapper.style.borderColor = 'var(--border-color)';
+                        
+                        // Desenhar círculos vermelhos indicando o transitório detectado
+                        drawDetectionCircle(blinkCtxB);
+                        
+                        statusText.textContent = "Sucesso! Transitório detetado em RA: 12h 45m / DEC: +23.41°! Estrela variável catalogada.";
+                        statusText.style.color = 'var(--success-color)';
+                        isComparing = false;
+                    }
+                }, 500);
+
+            }, 1200);
+        }
+
+        function drawDetectionCircle(ctx) {
+            ctx.strokeStyle = '#ff4444';
+            ctx.lineWidth = 1.5;
+            ctx.setLineDash([3, 3]);
+            ctx.beginPath();
+            ctx.arc(130, 110, 22, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+
+        // 6. GIROSCÓPIO SIMULADO POR SLIDERS NO MODAL
+        function openSimulationModal() {
+            document.getElementById('simulation-modal').style.display = 'flex';
+            updateGiroscopioSim();
+        }
+
+        function closeSimulationModal() {
+            document.getElementById('simulation-modal').style.display = 'none';
+        }
+
+        function updateGiroscopioSim() {
+            const pitch = document.getElementById('control-pitch').value;
+            const yaw = document.getElementById('control-yaw').value;
+            
+            document.getElementById('val-pitch').textContent = pitch + '°';
+            document.getElementById('val-yaw').textContent = yaw + '°';
+
+            // Rotacionar visualmente o telemóvel no modal 3D
+            const phone = document.getElementById('sim-phone');
+            phone.style.transform = `rotateX(${pitch}deg) rotateY(${yaw - 180}deg)`;
+
+            // Atualizar valores do HUD do telescópio distribuído
+            const decFormatted = (parseFloat(pitch) + 30).toFixed(3);
+            const raHours = Math.floor(yaw / 15);
+            const raMins = Math.floor((yaw % 15) * 4);
+            document.getElementById('hud-dec').textContent = `+${decFormatted}°`;
+            document.getElementById('hud-ra').textContent = `${raHours}h ${raMins}m 00s`;
+        }
+
+        // 7. ZORYA AI COM RETRY EXPONENCIAL
+        const apiKey = ""; // Chave injetada no runtime pelo ecossistema
+
+        function toggleAIPanel() {
+            const panel = document.getElementById('ai-panel');
+            if (panel.style.display === 'flex') {
+                panel.style.display = 'none';
+            } else {
+                panel.style.display = 'flex';
+                document.getElementById('ai-user-input').focus();
+            }
+        }
+
+        function handleAIKeyPress(e) {
+            if (e.key === 'Enter') {
+                sendToAI();
+            }
+        }
+
+        async function sendToAI() {
+            const inputEl = document.getElementById('ai-user-input');
+            const message = inputEl.value.trim();
+            if (!message) return;
+
+            appendMessage(message, 'user');
+            inputEl.value = '';
+
+            const loadingId = appendMessage('Consultando banco de dados de IA...', 'assistant');
+
+            try {
+                const reply = await callGeminiAPI(message);
+                updateMessage(loadingId, reply);
+            } catch (err) {
+                updateMessage(loadingId, "A conexão com a inteligência artificial de processamento distribuído falhou. Tente novamente em instantes!");
+            }
+        }
+
+        function appendMessage(text, role) {
+            const container = document.getElementById('ai-messages');
+            const messageEl = document.createElement('div');
+            const messageId = 'msg-' + Date.now();
+            messageEl.id = messageId;
+            messageEl.className = `ai-message ${role}`;
+            messageEl.textContent = text;
+            container.appendChild(messageEl);
+            container.scrollTop = container.scrollHeight;
+            return messageId;
+        }
+
+        function updateMessage(id, newText) {
+            const messageEl = document.getElementById(id);
+            if (messageEl) {
+                messageEl.textContent = newText;
+                const container = document.getElementById('ai-messages');
+                container.scrollTop = container.scrollHeight;
+            }
+        }
+
+        // Chamada da API Gemini com Exponential Backoff
+        async function callGeminiAPI(userQuery) {
+            const systemPrompt = "Você é a Zorya-AI, especialista em redes de telescópios distribuídos, Co-Addition, Shift-and-Add e astrofísica. Responda em português, de forma concisa e técnica de fácil acesso, limitando-se a um máximo de 4 linhas.";
+            const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+            
+            const payload = {
+                contents: [{ parts: [{ text: userQuery }] }],
+                systemInstruction: { parts: [{ text: systemPrompt }] }
+            };
+
+            const maxRetries = 5;
+            let attempt = 0;
+
+            while (attempt < maxRetries) {
+                try {
+                    const response = await fetch(endpoint, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`Erro HTTP: ${response.status}`);
+                    }
+
+                    const data = await response.json();
+                    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+                    if (text) {
+                        return text;
+                    } else {
+                        throw new Error("Formato inválido.");
+                    }
+                } catch (error) {
+                    attempt++;
+                    if (attempt >= maxRetries) {
+                        throw error;
+                    }
+                    const delay = Math.pow(2, attempt) * 1000;
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                }
+            }
+        }
+
+        // Outros Modais
+        function openProfileModal() {
+            document.getElementById('profile-modal').style.display = 'flex';
+        }
+        function closeProfileModal() {
+            document.getElementById('profile-modal').style.display = 'none';
+        }
+        function openCardDetail(title, desc) {
+            alert(`${title}: ${desc}`);
+        }
+        function triggerSimulationRebuild() {
+            alert("Iniciando recalibração espacial por IA de todos os 1.482 terminais móveis. Tempo estimado: 3 minutos.");
+        }
+    </script>
+</body>
+</html>
