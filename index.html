@@ -1,11 +1,12 @@
+```html
 <!DOCTYPE html>
 <html lang="pt-pt">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>ZORYA - Telescópio IA</title>
+    <title>ZORYA - Telescópio Distribuído & IA</title>
     
-    <!-- Google Fonts (Corrigido) -->
+    <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
     
     <!-- Lucide Icons CDN -->
@@ -305,17 +306,33 @@
             border: 1px solid rgba(255, 255, 255, 0.05);
             position: relative;
             overflow: hidden;
-            touch-action: none; /* Previne scroll acidental da página ao arrastar no S24 */
+            touch-action: none; 
             cursor: grab;
+        }
+
+        /* Câmara Real de Fundo */
+        #camera-video {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: none;
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        #sky-canvas {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            z-index: 2; 
+            background-color: transparent;
         }
 
         .sky-canvas-wrapper:active {
             cursor: grabbing;
-        }
-
-        #sky-canvas {
-            width: 100%;
-            height: 100%;
         }
 
         /* Sobreposições do Monitor */
@@ -696,6 +713,14 @@
             gap: 15px;
         }
 
+        .ai-messages::-webkit-scrollbar {
+            width: 4px;
+        }
+        .ai-messages::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 2px;
+        }
+
         .ai-message {
             max-width: 85%;
             padding: 12px 16px;
@@ -819,6 +844,7 @@
             flex-direction: column;
             align-items: center;
             gap: 15px;
+            perspective: 600px; 
         }
 
         .phone-frame {
@@ -832,6 +858,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
+            transform-style: preserve-3d; 
         }
 
         .phone-screen-camera {
@@ -847,6 +874,7 @@
             font-size: 10px;
             text-align: center;
             padding: 10px;
+            transform: translateZ(10px); 
         }
 
         .gyro-axis-indicator {
@@ -923,15 +951,25 @@
                 
                 <!-- Monitor do Espaço (Canvas + HUD) -->
                 <div class="sky-monitor-card">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
                         <div>
                             <h2 style="font-family: var(--font-display); font-size: 20px;">Painel de Alinhamento Celeste</h2>
-                            <p style="color: var(--text-secondary); font-size: 12px; margin-top: 2px;">Deslize o dedo no mapa para rodar o telescópio ou ative o giroscópio real.</p>
+                            <p style="color: var(--text-secondary); font-size: 12px; margin-top: 2px;">Rode o telemóvel deitado ou em pé. Ligue a câmara real para fusão AR!</p>
                         </div>
-                        <span style="font-size: 11px; background: rgba(99, 78, 255, 0.1); padding: 4px 10px; border-radius: 12px; color: var(--violet-2); font-weight: 600;">Modo Cooperativo</span>
+                        <div style="display:flex; gap:10px;">
+                            <!-- Botão Dia/Noite -->
+                            <button id="btn-day-night" class="hud-btn" onclick="toggleDayNightMode()" style="border-color:var(--warning-color); color:var(--warning-color);">
+                                <i data-lucide="sun"></i> Modo Noite
+                            </button>
+                            <span style="font-size: 11px; background: rgba(99, 78, 255, 0.1); padding: 8px 12px; border-radius: 12px; color: var(--violet-2); font-weight: 600; display:flex; align-items:center;">Modo Cooperativo</span>
+                        </div>
                     </div>
 
                     <div class="sky-canvas-wrapper" id="canvas-container">
+                        <!-- Stream de Vídeo da Câmara Traseira -->
+                        <video id="camera-video" autoplay playsinline muted></video>
+
+                        <!-- Canvas do Céu de Estrelas -->
                         <canvas id="sky-canvas"></canvas>
                         
                         <!-- HUD Overlay com Coordenadas do Celular Simulado -->
@@ -945,10 +983,13 @@
                         <!-- Controles no Fundo do Monitor -->
                         <div class="hud-controls">
                             <button class="hud-btn active" id="btn-mode-pointing" onclick="setControlMode('pointing')">
-                                <i data-lucide="navigation"></i> Modo Manual
+                                <i data-lucide="navigation"></i> Toque Manual
                             </button>
                             <button class="hud-btn" id="btn-real-gyro" onclick="toggleRealGyroscope()">
-                                <i data-lucide="compass"></i> Ativar Giroscópio Real
+                                <i data-lucide="compass"></i> Sensor Físico (Gyro)
+                            </button>
+                            <button class="hud-btn" id="btn-camera-toggle" onclick="toggleRealCamera()">
+                                <i data-lucide="camera"></i> Ativar Câmara (AR)
                             </button>
                             <button class="hud-btn" onclick="openSimulationModal()">
                                 <i data-lucide="tablet-smartphone"></i> Testar 3D
@@ -1138,7 +1179,7 @@
             <div class="modal-body">
                 <button class="modal-close" onclick="closeSimulationModal()"><i data-lucide="x"></i></button>
                 <h3 style="font-family: var(--font-display);">Simulação de Orientação</h3>
-                <p style="color: var(--text-secondary); font-size:13px;">Mova os sliders para testar a rotação 3D sem precisar de mover o telemóvel real.</p>
+                <p style="color: var(--text-secondary); font-size:13px;">Mova os sliders para testar a rotação 3D do telemóvel virtual em tempo real.</p>
                 
                 <div class="gyro-simulation-box">
                     <div class="phone-frame" id="sim-phone">
@@ -1149,7 +1190,7 @@
                     </div>
                     <div class="gyro-axis-indicator">
                         <span>PITCH (Dec): <b id="val-pitch">0°</b></span>
-                        <span>YAW (RA): <b id="val-yaw">0°</b></span>
+                        <span>YAW (RA): <b id="val-yaw">180°</b></span>
                     </div>
                 </div>
 
@@ -1208,6 +1249,9 @@
         let globalMode = 'pointing'; // 'pointing' ou 'realgyro'
         let selectedObject = null;
         let useRealGyro = false;
+        let isCameraActive = false;
+        let isDayMode = false; // Estado do Modo Dia / Noite
+        let cameraStream = null;
 
         // Deslocamento do mapa pelo arrastamento do utilizador (touch/drag)
         let mapOffsetX = 0;
@@ -1216,11 +1260,16 @@
         let startDragX = 0;
         let startDragY = 0;
 
-        // Dados Celestiais Simulados
+        // Calibração do Giroscópio
+        let gyroBaseAlpha = null;
+        let gyroBaseBeta = null;
+
+        // Dados Celestiais Simulados (Inclui o Sol para o Modo Dia)
         let celestialObjects = [
             { id: 1, baseRelX: 0, baseRelY: -80, radius: 15, name: 'Nebula de Órion', type: 'Mosaico Ativo', baseR: 220, baseG: 80, baseB: 220, stacked: 12840, res: '2.4Gpx' },
             { id: 2, baseRelX: 180, baseRelY: 60, radius: 25, name: 'Galáxia de Andrómeda', type: 'Galáxia', baseR: 100, baseG: 160, baseB: 240, stacked: 9480, res: '1.8Gpx' },
-            { id: 3, baseRelX: -120, baseRelY: 100, radius: 8, name: 'Supernova SN2026z', type: 'Fenómeno Transitório', baseR: 255, baseG: 80, baseB: 80, stacked: 450, res: '512Mpx' }
+            { id: 3, baseRelX: -120, baseRelY: 100, radius: 8, name: 'Supernova SN2026z', type: 'Fenómeno Transitório', baseR: 255, baseG: 80, baseB: 80, stacked: 450, res: '512Mpx' },
+            { id: 4, baseRelX: 50, baseRelY: -150, radius: 30, name: 'Sol (Estrela Heliocêntrica)', type: 'Estrela', baseR: 255, baseG: 220, baseB: 100, stacked: 439000, res: '8.4Gpx', isDaytimeOnly: true }
         ];
 
         // Eventos de feed simulados
@@ -1289,7 +1338,6 @@
 
             window.addEventListener('resize', resizeSkyCanvas);
             
-            // Adicionar suporte para Rotação Manual via Toque e Mouse
             const container = document.getElementById('canvas-container');
             
             // Mouse Listeners
@@ -1308,9 +1356,26 @@
 
                 const centerX = skyCanvas.width / 2;
                 const centerY = skyCanvas.height / 2;
+
+                // Renderizar o fundo dependendo do Modo Dia / Noite (Se a câmara real não estiver ativa)
+                if (!isCameraActive) {
+                    if (isDayMode) {
+                        // Céu azul de dia
+                        let skyGrad = skyCtx.createLinearGradient(0, 0, 0, skyCanvas.height);
+                        skyGrad.addColorStop(0, '#1a56b0');
+                        skyGrad.addColorStop(0.5, '#4a8df0');
+                        skyGrad.addColorStop(1, '#a6cdff');
+                        skyCtx.fillStyle = skyGrad;
+                        skyCtx.fillRect(0, 0, skyCanvas.width, skyCanvas.height);
+                    } else {
+                        // Céu estrelado escuro de noite
+                        skyCtx.fillStyle = '#020207';
+                        skyCtx.fillRect(0, 0, skyCanvas.width, skyCanvas.height);
+                    }
+                }
                 
                 // Desenhar Círculos Concêntricos de Orientação do visor
-                skyCtx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
+                skyCtx.strokeStyle = isDayMode ? 'rgba(255, 255, 255, 0.15)' : 'rgba(255, 255, 255, 0.04)';
                 skyCtx.lineWidth = 1;
                 for (let r = 50; r <= 350; r += 50) {
                     skyCtx.beginPath();
@@ -1319,7 +1384,7 @@
                 }
 
                 // Cruz de Pontaria Central Estática
-                skyCtx.strokeStyle = 'rgba(99, 78, 255, 0.15)';
+                skyCtx.strokeStyle = isDayMode ? 'rgba(255, 255, 255, 0.3)' : 'rgba(99, 78, 255, 0.15)';
                 skyCtx.beginPath();
                 skyCtx.moveTo(centerX - 180, centerY);
                 skyCtx.lineTo(centerX + 180, centerY);
@@ -1327,22 +1392,26 @@
                 skyCtx.lineTo(centerX, centerY + 180);
                 skyCtx.stroke();
 
-                // Desenhar Estrelas Secundárias Deslocáveis no Fundo do Visor
-                skyCtx.fillStyle = 'rgba(255,255,255,0.4)';
-                for (let i = 0; i < 40; i++) {
-                    const staticX = (i * 97) % 600;
-                    const staticY = (i * 149) % 600;
-                    // Aplicar offsets de arrastamento com wrap-around
-                    const drawX = ((staticX + mapOffsetX) % skyCanvas.width + skyCanvas.width) % skyCanvas.width;
-                    const drawY = ((staticY + mapOffsetY) % skyCanvas.height + skyCanvas.height) % skyCanvas.height;
-                    
-                    skyCtx.beginPath();
-                    skyCtx.arc(drawX, drawY, 1, 0, Math.PI * 2);
-                    skyCtx.fill();
+                // Desenhar Estrelas Secundárias Deslocáveis no Fundo do Visor (Apenas de noite, ou se a câmara estiver ligada)
+                if (!isDayMode || isCameraActive) {
+                    skyCtx.fillStyle = 'rgba(255,255,255,0.4)';
+                    for (let i = 0; i < 40; i++) {
+                        const staticX = (i * 97) % 600;
+                        const staticY = (i * 149) % 600;
+                        const drawX = ((staticX + mapOffsetX) % skyCanvas.width + skyCanvas.width) % skyCanvas.width;
+                        const drawY = ((staticY + mapOffsetY) % skyCanvas.height + skyCanvas.height) % skyCanvas.height;
+                        
+                        skyCtx.beginPath();
+                        skyCtx.arc(drawX, drawY, 1, 0, Math.PI * 2);
+                        skyCtx.fill();
+                    }
                 }
 
                 // Desenhar Objetos Celestiais Dinâmicos (Movidos pelo Touch ou Giroscópio)
                 celestialObjects.forEach(obj => {
+                    // Ocultar objetos astronómicos fracos de dia (exceto o Sol) se não for modo câmara
+                    if (isDayMode && !isCameraActive && !obj.isDaytimeOnly) return;
+
                     const finalX = centerX + obj.baseRelX + mapOffsetX;
                     const finalY = centerY + obj.baseRelY + mapOffsetY;
 
@@ -1365,7 +1434,7 @@
 
                     // Anel Seletor se focado
                     if (selectedObject === obj) {
-                        skyCtx.strokeStyle = '#6a7cff';
+                        skyCtx.strokeStyle = isDayMode ? '#ffaa00' : '#6a7cff';
                         skyCtx.lineWidth = 1.5;
                         skyCtx.beginPath();
                         skyCtx.arc(finalX, finalY, obj.radius * 1.5, 0, Math.PI * 2);
@@ -1373,8 +1442,8 @@
                     }
 
                     // Nome
-                    skyCtx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-                    skyCtx.font = '11px Space Grotesk';
+                    skyCtx.fillStyle = isDayMode && !isCameraActive ? 'rgba(3, 4, 11, 0.9)' : 'rgba(255, 255, 255, 0.8)';
+                    skyCtx.font = 'bold 11px Space Grotesk';
                     skyCtx.textAlign = 'center';
                     skyCtx.fillText(obj.name, finalX, finalY - obj.radius - 12);
                 });
@@ -1393,7 +1462,7 @@
 
         // Funções de Arrastamento do Mapa
         function startDrag(e) {
-            if (useRealGyro) return; // Desativa arrastamento manual se giroscópio real estiver ativo
+            if (useRealGyro) return;
             isDragging = true;
             const clientX = e.touches ? e.touches[0].clientX : e.clientX;
             const clientY = e.touches ? e.touches[0].clientY : e.clientY;
@@ -1403,7 +1472,7 @@
 
         function dragMove(e) {
             if (!isDragging || useRealGyro) return;
-            if (e.cancelable) e.preventDefault(); // Evita scroll na tela durante arraste no mobile
+            if (e.cancelable) e.preventDefault();
             
             const clientX = e.touches ? e.touches[0].clientX : e.clientX;
             const clientY = e.touches ? e.touches[0].clientY : e.clientY;
@@ -1411,7 +1480,9 @@
             mapOffsetX = clientX - startDragX;
             mapOffsetY = clientY - startDragY;
 
-            // Atualizar valores do HUD baseando-se no deslocamento manual
+            mapOffsetX = Math.max(-400, Math.min(400, mapOffsetX));
+            mapOffsetY = Math.max(-450, Math.min(450, mapOffsetY));
+
             const pitch = (mapOffsetY / 5).toFixed(3);
             const yaw = (((mapOffsetX / 5) % 360) + 360) % 360;
             
@@ -1420,10 +1491,11 @@
             const raMins = Math.floor((yaw % 15) * 4);
             document.getElementById('hud-ra').textContent = `${raHours}h ${raMins}m 12s`;
 
-            // Encontrar se passou perto de algum astro para selecioná-lo automaticamente
+            // Auto-selecionar astros próximos do centro
             const centerX = skyCanvas.width / 2;
             const centerY = skyCanvas.height / 2;
             celestialObjects.forEach(obj => {
+                if (isDayMode && !isCameraActive && !obj.isDaytimeOnly) return;
                 const finalX = centerX + obj.baseRelX + mapOffsetX;
                 const finalY = centerY + obj.baseRelY + mapOffsetY;
                 const distToCenter = Math.hypot(finalX - centerX, finalY - centerY);
@@ -1447,16 +1519,78 @@
             globalMode = mode;
             document.getElementById('btn-mode-pointing').classList.add('active');
             
-            // Desativar giroscópio real se mudar para manual
             if (mode === 'pointing') {
                 useRealGyro = false;
                 document.getElementById('btn-real-gyro').classList.remove('active');
                 document.getElementById('gyro-status-badge').textContent = '• Modo Manual / Touch';
                 document.getElementById('gyro-status-badge').style.color = 'var(--warning-color)';
+                window.removeEventListener('deviceorientation', handleMobileDeviceOrientation);
+                window.removeEventListener('deviceorientationabsolute', handleMobileDeviceOrientation);
             }
         }
 
-        // 3. ATIVAR GIROSCÓPIO FÍSICO REAL (S24 ULTRA)
+        // 3. ATIVAR CAMARA TRASEIRA REAL DO S24 ULTRA (REALIDADE AUMENTADA)
+        async function toggleRealCamera() {
+            const video = document.getElementById('camera-video');
+            const btn = document.getElementById('btn-camera-toggle');
+
+            if (isCameraActive) {
+                // Parar câmara
+                isCameraActive = false;
+                btn.classList.remove('active');
+                video.style.display = 'none';
+                if (cameraStream) {
+                    cameraStream.getTracks().forEach(track => track.stop());
+                    cameraStream = null;
+                }
+            } else {
+                // Iniciar câmara traseira em alta definição
+                try {
+                    const constraints = {
+                        video: {
+                            facingMode: 'environment', // Força câmara traseira
+                            width: { ideal: 1280 },
+                            height: { ideal: 720 }
+                        },
+                        audio: false
+                    };
+
+                    cameraStream = await navigator.mediaDevices.getUserMedia(constraints);
+                    video.srcObject = cameraStream;
+                    video.style.display = 'block';
+                    isCameraActive = true;
+                    btn.classList.add('active');
+                } catch (err) {
+                    console.error("Erro ao aceder à câmara:", err);
+                    alert("Não foi possível aceder à câmara traseira. Certifique-se de que deu permissões de câmara no Chrome.");
+                }
+            }
+        }
+
+        // 4. MODO DIA E NOITE (RAYLEIGH SCATTERING SIMULATION)
+        function toggleDayNightMode() {
+            const btn = document.getElementById('btn-day-night');
+            isDayMode = !isDayMode;
+
+            if (isDayMode) {
+                btn.innerHTML = '<i data-lucide="moon"></i> Modo Dia';
+                btn.style.borderColor = 'var(--cyan)';
+                btn.style.color = 'var(--cyan)';
+                document.getElementById('active-mosaic-name').textContent = 'Sol (Estrela Heliocêntrica)';
+                document.getElementById('metrics-stacked').textContent = '439,000';
+                document.getElementById('metrics-gain').textContent = '8.4Gpx';
+            } else {
+                btn.innerHTML = '<i data-lucide="sun"></i> Modo Noite';
+                btn.style.borderColor = 'var(--warning-color)';
+                btn.style.color = 'var(--warning-color)';
+                document.getElementById('active-mosaic-name').textContent = 'Nebula de Órion';
+                document.getElementById('metrics-stacked').textContent = '12,840';
+                document.getElementById('metrics-gain').textContent = '2.4Gpx';
+            }
+            try { lucide.createIcons(); } catch(e) {}
+        }
+
+        // 5. ATIVAR GIROSCÓPIO FÍSICO COM COMPENSAÇÃO DE ROTAÇÃO DE ECRÃ (LANDSCAPE/PORTRAIT)
         function toggleRealGyroscope() {
             const btn = document.getElementById('btn-real-gyro');
             const badge = document.getElementById('gyro-status-badge');
@@ -1466,379 +1600,64 @@
                 btn.classList.remove('active');
                 badge.textContent = '• Modo Manual / Touch';
                 badge.style.color = 'var(--warning-color)';
+                window.removeEventListener('deviceorientation', handleMobileDeviceOrientation);
+                window.removeEventListener('deviceorientationabsolute', handleMobileDeviceOrientation);
             } else {
-                // Verificar se o browser suporta orientação física
-                if (window.DeviceOrientationEvent) {
-                    // iOS 13+ requer permissão explícita, mas S24 (Android) aceita de imediato por HTTPS
-                    if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-                        DeviceOrientationEvent.requestPermission()
-                            .then(state => {
-                                if (state === 'granted') {
-                                    activateGyroListener(btn, badge);
-                                } else {
-                                    alert("Permissão para aceder aos sensores do telemóvel foi negada.");
-                                }
-                            })
-                            .catch(err => console.error("Erro de sensor:", err));
-                    } else {
-                        // Ativação direta para Android/S24 Ultra
-                        activateGyroListener(btn, badge);
-                    }
+                if ('ondeviceorientationabsolute' in window) {
+                    activateGyroListener(btn, badge, true);
+                } else if ('ondeviceorientation' in window) {
+                    activateGyroListener(btn, badge, false);
                 } else {
-                    alert("Giroscópio não suportado no navegador atual.");
+                    alert("Giroscópio físico não suportado no seu navegador.");
                 }
             }
         }
 
-        function activateGyroListener(btn, badge) {
+        function activateGyroListener(btn, badge, isAbsolute) {
             useRealGyro = true;
+            gyroBaseAlpha = null; 
+            gyroBaseBeta = null;
+            
             btn.classList.add('active');
             document.getElementById('btn-mode-pointing').classList.remove('active');
             badge.textContent = '• Giroscópio Ativo (S24 Ultra)';
             badge.style.color = 'var(--success-color)';
             
-            window.addEventListener('deviceorientation', handleMobileDeviceOrientation);
+            const eventType = isAbsolute ? 'deviceorientationabsolute' : 'deviceorientation';
+            window.addEventListener(eventType, handleMobileDeviceOrientation);
         }
 
         function handleMobileDeviceOrientation(event) {
             if (!useRealGyro) return;
 
-            // beta: inclinação vertical (-180 a 180) -> Mapeia para Pitch / DEC
-            // alpha: rotação bússola (0 a 360) -> Mapeia para Yaw / RA
-            const pitch = event.beta ? event.beta : 0;
-            const yaw = event.alpha ? event.alpha : 0;
+            let pitch = event.beta !== null ? event.beta : 0; // Frente/Trás (-180 a 180)
+            let roll = event.gamma !== null ? event.gamma : 0; // Esquerda/Direita (-90 a 90)
+            let yaw = event.alpha !== null ? event.alpha : 0;   // Bússola (0 a 360)
 
-            // Mover o mapa celeste diretamente de acordo com a rotação física do S24!
-            mapOffsetX = -(yaw * 2);
-            mapOffsetY = -(pitch * 2);
-
-            // Atualizar valores do HUD com dados reais dos sensores físicos
-            document.getElementById('hud-dec').textContent = `+${(pitch + 23.412).toFixed(3)}°`;
-            const raHours = Math.floor(yaw / 15);
-            const raMins = Math.floor((yaw % 15) * 4);
-            document.getElementById('hud-ra').textContent = `${raHours}h ${raMins}m 12s`;
-        }
-
-        // 4. MUDAR DE ABA (SINGLE PAGE NAVIGATION)
-        function switchView(viewName) {
-            document.querySelectorAll('.page-view').forEach(view => {
-                view.classList.remove('active');
-            });
-            const target = document.getElementById('view-' + viewName);
-            if (target) target.classList.add('active');
-
-            document.querySelectorAll('.nav-item').forEach(item => {
-                item.classList.remove('active');
-            });
-            
-            if (viewName === 'inicio') document.getElementById('btn-nav-inicio').classList.add('active');
-            else if (viewName === 'mosaicos') document.getElementById('btn-nav-mosaicos').classList.add('active');
-            else if (viewName === 'transitorios') document.getElementById('btn-nav-transitorios').classList.add('active');
-        }
-
-        // 5. FEED DE EVENTOS E DETECTORES
-        function renderEventsFeed() {
-            const listEl = document.getElementById('events-list');
-            if (!listEl) return;
-            listEl.innerHTML = '';
-            
-            feedEvents.forEach(evt => {
-                const item = document.createElement('div');
-                item.className = 'event-item';
-                
-                let badgeClass = 'badge-transitory';
-                let badgeText = 'TR';
-                if (evt.type === 'mosaic') { badgeClass = 'badge-mosaic'; badgeText = 'MOSAICO'; }
-                if (evt.type === 'resolution') { badgeClass = 'badge-resolution'; badgeText = 'CO-ADD'; }
-
-                item.innerHTML = `
-                    <div class="event-info">
-                        <span class="event-type-badge ${badgeClass}">${badgeText}</span>
-                        <p style="font-weight: 500; margin-top: 5px; color: #fff;">${evt.desc}</p>
-                    </div>
-                    <span style="color: var(--text-secondary); font-size: 10px; white-space: nowrap;">${evt.time}</span>
-                `;
-                listEl.appendChild(item);
-            });
-        }
-
-        function simulateNewEvent() {
-            const types = ['transitory', 'mosaic', 'resolution'];
-            const rType = types[Math.floor(Math.random() * types.length)];
-            let newDesc = '';
-
-            if (rType === 'transitory') {
-                newDesc = `Asteroide em trânsito detetado na região de Ursa Maior em RA: ${Math.floor(Math.random() * 24)}h.`;
-            } else if (rType === 'mosaic') {
-                newDesc = `Mosaico de Andrómeda ampliado com novas amostras enviadas de celular no Hemisfério Sul.`;
-            } else {
-                newDesc = `Algoritmo Stack-and-Shift alcançou resolução ideal em infravermelho simulado.`;
+            // DETETAR ORIENTAÇÃO DO ECRÃ (LANDSCAPE VS PORTRAIT) DO S24 ULTRA
+            let screenAngle = 0;
+            if (window.screen && window.screen.orientation) {
+                screenAngle = window.screen.orientation.angle;
+            } else if ('orientation' in window) {
+                screenAngle = window.orientation;
             }
 
-            const newEvt = {
-                id: Date.now(),
-                type: rType,
-                desc: newDesc,
-                time: 'Agora mesmo'
-            };
+            let compensatedPitch = pitch;
+            let compensatedYaw = yaw;
 
-            feedEvents.unshift(newEvt);
-            if (feedEvents.length > 5) feedEvents.pop();
-            renderEventsFeed();
-        }
-
-        // 6. BLINK COMPARATOR (COMPARAÇÃO DE FOTOS DE ÉPOCAS)
-        let blinkCanvasA, blinkCtxA;
-        let blinkCanvasB, blinkCtxB;
-
-        function initBlinkCanvases() {
-            try {
-                blinkCanvasA = document.getElementById('blink-canvas-a');
-                blinkCtxA = blinkCanvasA.getContext('2d');
-                blinkCanvasB = document.getElementById('blink-canvas-b');
-                blinkCtxB = blinkCanvasB.getContext('2d');
-
-                drawBlinkSky(blinkCtxA, false);
-                drawBlinkSky(blinkCtxB, true);
-            } catch(e) {
-                console.warn("Erro ao iniciar os canva de blink:", e);
+            // REMAPEAMENTO DE SENSORES CONSOANTE O ÂNGULO DE ROTAÇÃO DO S24 ULTRA
+            if (screenAngle === 90) {
+                // Telemóvel deitado para a esquerda (Landscape Left)
+                compensatedPitch = -roll;
+                compensatedYaw = yaw + 90;
+            } else if (screenAngle === 270 || screenAngle === -90) {
+                // Telemóvel deitado para a direita (Landscape Right)
+                compensatedPitch = roll;
+                compensatedYaw = yaw - 90;
+            } else if (screenAngle === 180) {
+                // Telemóvel invertido de cabeça para baixo
+                compensatedPitch = -pitch;
+                compensatedYaw = yaw + 180;
             }
-        }
 
-        function drawBlinkSky(ctx, showSupernova) {
-            if (!ctx) return;
-            ctx.clearRect(0, 0, 300, 250);
-            ctx.fillStyle = '#ffffff';
-            let starsSeed = [
-                {x: 40, y: 50, r: 1}, {x: 220, y: 40, r: 1.5},
-                {x: 180, y: 190, r: 1}, {x: 90, y: 150, r: 2},
-                {x: 260, y: 130, r: 0.8}, {x: 140, y: 90, r: 1.2}
-            ];
-            starsSeed.forEach(s => {
-                ctx.beginPath();
-                ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
-                ctx.fill();
-            });
-
-            let glow = ctx.createRadialGradient(150, 125, 5, 150, 125, 45);
-            glow.addColorStop(0, 'rgba(100, 160, 240, 0.6)');
-            glow.addColorStop(0.5, 'rgba(134, 120, 255, 0.2)');
-            glow.addColorStop(1, 'rgba(0,0,0,0)');
-            ctx.fillStyle = glow;
-            ctx.beginPath();
-            ctx.arc(150, 125, 45, 0, Math.PI * 2);
-            ctx.fill();
-
-            if (showSupernova) {
-                let sGlow = ctx.createRadialGradient(130, 110, 2, 130, 110, 15);
-                sGlow.addColorStop(0, '#ff4444');
-                sGlow.addColorStop(0.5, 'rgba(255, 68, 68, 0.4)');
-                sGlow.addColorStop(1, 'rgba(0,0,0,0)');
-                ctx.fillStyle = sGlow;
-                ctx.beginPath();
-                ctx.arc(130, 110, 15, 0, Math.PI * 2);
-                ctx.fill();
-
-                ctx.fillStyle = '#ffffff';
-                ctx.beginPath();
-                ctx.arc(130, 110, 3, 0, Math.PI * 2);
-                ctx.fill();
-            }
-        }
-
-        let isComparing = false;
-        function runBlinkComparison() {
-            if (isComparing) return;
-            isComparing = true;
-            
-            const statusText = document.getElementById('blink-status-text');
-            statusText.textContent = "Alinhando pixel espacial de ambas as épocas...";
-            statusText.style.color = 'var(--warning-color)';
-
-            setTimeout(() => {
-                statusText.textContent = "Executando deteção de diferença algorítmica de IA...";
-                
-                let step = 0;
-                let interval = setInterval(() => {
-                    const canvasAWrapper = blinkCanvasA.parentElement;
-                    const canvasBWrapper = blinkCanvasB.parentElement;
-                    
-                    if (step % 2 === 0) {
-                        canvasAWrapper.style.borderColor = 'var(--accent-color)';
-                        canvasBWrapper.style.borderColor = 'transparent';
-                    } else {
-                        canvasAWrapper.style.borderColor = 'transparent';
-                        canvasBWrapper.style.borderColor = 'var(--danger-color)';
-                    }
-                    step++;
-                    if (step > 6) {
-                        clearInterval(interval);
-                        canvasAWrapper.style.borderColor = 'var(--border-color)';
-                        canvasBWrapper.style.borderColor = 'var(--border-color)';
-                        
-                        drawDetectionCircle(blinkCtxB);
-                        
-                        statusText.textContent = "Sucesso! Transitório detetado em RA: 12h 45m / DEC: +23.41°! Estrela variável catalogada.";
-                        statusText.style.color = 'var(--success-color)';
-                        isComparing = false;
-                    }
-                }, 500);
-
-            }, 1200);
-        }
-
-        function drawDetectionCircle(ctx) {
-            ctx.strokeStyle = '#ff4444';
-            ctx.lineWidth = 1.5;
-            ctx.setLineDash([3, 3]);
-            ctx.beginPath();
-            ctx.arc(130, 110, 22, 0, Math.PI * 2);
-            ctx.stroke();
-            ctx.setLineDash([]);
-        }
-
-        // 7. CONTROLES DO MODAL DO SIMULADOR 3D
-        function openSimulationModal() {
-            document.getElementById('simulation-modal').style.display = 'flex';
-            updateGiroscopioSim();
-        }
-
-        function closeSimulationModal() {
-            document.getElementById('simulation-modal').style.display = 'none';
-        }
-
-        function updateGiroscopioSim() {
-            const pitch = document.getElementById('control-pitch').value;
-            const yaw = document.getElementById('control-yaw').value;
-            
-            document.getElementById('val-pitch').textContent = pitch + '°';
-            document.getElementById('val-yaw').textContent = yaw + '°';
-
-            const phone = document.getElementById('sim-phone');
-            phone.style.transform = `rotateX(${pitch}deg) rotateY(${yaw - 180}deg)`;
-
-            if (!useRealGyro) {
-                mapOffsetX = -((yaw - 180) * 1.5);
-                mapOffsetY = -(pitch * 1.5);
-
-                const decFormatted = (parseFloat(pitch) + 30).toFixed(3);
-                const raHours = Math.floor(yaw / 15);
-                const raMins = Math.floor((yaw % 15) * 4);
-                document.getElementById('hud-dec').textContent = `+${decFormatted}°`;
-                document.getElementById('hud-ra').textContent = `${raHours}h ${raMins}m 00s`;
-            }
-        }
-
-        // 8. INTEGRAÇÃO DA IA GEMINI COM RETRY EXPONENCIAL
-        const apiKey = ""; 
-
-        function toggleAIPanel() {
-            const panel = document.getElementById('ai-panel');
-            if (panel.style.display === 'flex') {
-                panel.style.display = 'none';
-            } else {
-                panel.style.display = 'flex';
-                document.getElementById('ai-user-input').focus();
-            }
-        }
-
-        function handleAIKeyPress(e) {
-            if (e.key === 'Enter') {
-                sendToAI();
-            }
-        }
-
-        async function sendToAI() {
-            const inputEl = document.getElementById('ai-user-input');
-            const message = inputEl.value.trim();
-            if (!message) return;
-
-            appendMessage(message, 'user');
-            inputEl.value = '';
-
-            const loadingId = appendMessage('Consultando banco de dados de IA...', 'assistant');
-
-            try {
-                const reply = await callGeminiAPI(message);
-                updateMessage(loadingId, reply);
-            } catch (err) {
-                updateMessage(loadingId, "A conexão com a inteligência artificial falhou. Certifique-se de que está ligado à internet!");
-            }
-        }
-
-        function appendMessage(text, role) {
-            const container = document.getElementById('ai-messages');
-            const messageEl = document.createElement('div');
-            const messageId = 'msg-' + Date.now();
-            messageEl.id = messageId;
-            messageEl.className = `ai-message ${role}`;
-            messageEl.textContent = text;
-            container.appendChild(messageEl);
-            container.scrollTop = container.scrollHeight;
-            return messageId;
-        }
-
-        function updateMessage(id, newText) {
-            const messageEl = document.getElementById(id);
-            if (messageEl) {
-                messageEl.textContent = newText;
-                const container = document.getElementById('ai-messages');
-                container.scrollTop = container.scrollHeight;
-            }
-        }
-
-        async function callGeminiAPI(userQuery) {
-            const systemPrompt = "Você é a Zorya-AI, especialista em redes de telescópios distribuídos e astrofísica. Responda em português, de forma concisa e técnica, limitando-se a um máximo de 4 linhas.";
-            const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
-            
-            const payload = {
-                contents: [{ parts: [{ text: userQuery }] }],
-                systemInstruction: { parts: [{ text: systemPrompt }] }
-            };
-
-            const maxRetries = 5;
-            let attempt = 0;
-
-            while (attempt < maxRetries) {
-                try {
-                    const response = await fetch(endpoint, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
-                    });
-
-                    if (!response.ok) {
-                        throw new Error(`Erro HTTP: ${response.status}`);
-                    }
-
-                    const data = await response.json();
-                    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-                    if (text) {
-                        return text;
-                    } else {
-                        throw new Error("Formato inválido.");
-                    }
-                } catch (error) {
-                    attempt++;
-                    if (attempt >= maxRetries) {
-                        throw error;
-                    }
-                    const delay = Math.pow(2, attempt) * 1000;
-                    await new Promise(resolve => setTimeout(resolve, delay));
-                }
-            }
-        }
-
-        // Modais Extras
-        function openProfileModal() {
-            document.getElementById('profile-modal').style.display = 'flex';
-        }
-        function closeProfileModal() {
-            document.getElementById('profile-modal').style.display = 'none';
-        }
-        function triggerSimulationRebuild() {
-            alert("Recalibrando matriz de alinhamento geo-espacial por IA de todos os 1.482 terminais móveis ativos.");
-        }
-    </script>
-</body>
-</html>
+  
