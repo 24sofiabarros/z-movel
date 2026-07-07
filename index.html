@@ -316,20 +316,6 @@
         #sky-canvas {
             width: 100%;
             height: 100%;
-            position: relative;
-            z-index: 3;
-        }
-
-        #ar-camera-feed {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            z-index: 1;
-            display: none;
-            background: #000;
         }
 
         /* Sobreposições do Monitor */
@@ -400,13 +386,6 @@
             background: var(--accent-color);
             border-color: var(--accent-color);
             box-shadow: 0 0 10px var(--accent-glow);
-        }
-
-        .hud-btn.day-mode-active {
-            background: #ffaa00;
-            border-color: #ffaa00;
-            color: #1a1200;
-            box-shadow: 0 0 10px rgba(255, 170, 0, 0.5);
         }
 
         /* Painel Lateral de Dados da Rede */
@@ -953,7 +932,6 @@
                     </div>
 
                     <div class="sky-canvas-wrapper" id="canvas-container">
-                        <video id="ar-camera-feed" autoplay playsinline muted></video>
                         <canvas id="sky-canvas"></canvas>
                         
                         <!-- HUD Overlay com Coordenadas do Celular Simulado -->
@@ -962,7 +940,6 @@
                             <b>DEC: <span id="hud-dec">+23.412°</span></b>
                             <b>RA: <span id="hud-ra">12h 45m 12s</span></b>
                             <span id="gyro-status-badge" style="color: var(--warning-color); font-size: 10px; margin-top: 4px;">&bull; Modo Manual / Touch</span>
-                            <span id="orientation-status-badge" style="color: var(--text-secondary); font-size: 10px;">&bull; Ecrã: Retrato</span>
                         </div>
 
                         <!-- Controles no Fundo do Monitor -->
@@ -972,12 +949,6 @@
                             </button>
                             <button class="hud-btn" id="btn-real-gyro" onclick="toggleRealGyroscope()">
                                 <i data-lucide="compass"></i> Ativar Giroscópio Real
-                            </button>
-                            <button class="hud-btn" id="btn-ar-camera" onclick="toggleARCamera()">
-                                <i data-lucide="camera"></i> Ativar Câmara
-                            </button>
-                            <button class="hud-btn" id="btn-day-night" onclick="toggleDayNight()">
-                                <i data-lucide="moon"></i> Modo Noite
                             </button>
                             <button class="hud-btn" onclick="openSimulationModal()">
                                 <i data-lucide="tablet-smartphone"></i> Testar 3D
@@ -1237,10 +1208,6 @@
         let globalMode = 'pointing'; // 'pointing' ou 'realgyro'
         let selectedObject = null;
         let useRealGyro = false;
-        let isDayMode = false;
-        let arCameraStream = null;
-        let arCameraActive = false;
-        let currentScreenAngle = 0;
 
         // Deslocamento do mapa pelo arrastamento do utilizador (touch/drag)
         let mapOffsetX = 0;
@@ -1256,9 +1223,6 @@
             { id: 3, baseRelX: -120, baseRelY: 100, radius: 8, name: 'Supernova SN2026z', type: 'Fenómeno Transitório', baseR: 255, baseG: 80, baseB: 80, stacked: 450, res: '512Mpx' }
         ];
 
-        // Posição simulada do Sol (usada no Modo Dia)
-        let sunObject = { baseRelX: 60, baseRelY: -140, radius: 30 };
-
         // Eventos de feed simulados
         let feedEvents = [
             { id: 1, type: 'transitory', desc: 'Supernova detetada na Galáxia M101 por 14 smartphones conectados.', time: 'Há 2 min' },
@@ -1272,7 +1236,6 @@
                 initSkyMonitor();
                 renderEventsFeed();
                 initBlinkCanvases();
-                updateOrientationBadge();
             } catch(err) {
                 console.error("Erro ao inicializar:", err);
             }
@@ -1345,169 +1308,80 @@
 
                 const centerX = skyCanvas.width / 2;
                 const centerY = skyCanvas.height / 2;
-
-                if (isDayMode) {
-                    drawDaytimeSky(centerX, centerY);
-                } else {
-                    drawNighttimeSky(centerX, centerY);
+                
+                // Desenhar Círculos Concêntricos de Orientação do visor
+                skyCtx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
+                skyCtx.lineWidth = 1;
+                for (let r = 50; r <= 350; r += 50) {
+                    skyCtx.beginPath();
+                    skyCtx.arc(centerX, centerY, r, 0, Math.PI * 2);
+                    skyCtx.stroke();
                 }
+
+                // Cruz de Pontaria Central Estática
+                skyCtx.strokeStyle = 'rgba(99, 78, 255, 0.15)';
+                skyCtx.beginPath();
+                skyCtx.moveTo(centerX - 180, centerY);
+                skyCtx.lineTo(centerX + 180, centerY);
+                skyCtx.moveTo(centerX, centerY - 180);
+                skyCtx.lineTo(centerX, centerY + 180);
+                skyCtx.stroke();
+
+                // Desenhar Estrelas Secundárias Deslocáveis no Fundo do Visor
+                skyCtx.fillStyle = 'rgba(255,255,255,0.4)';
+                for (let i = 0; i < 40; i++) {
+                    const staticX = (i * 97) % 600;
+                    const staticY = (i * 149) % 600;
+                    // Aplicar offsets de arrastamento com wrap-around
+                    const drawX = ((staticX + mapOffsetX) % skyCanvas.width + skyCanvas.width) % skyCanvas.width;
+                    const drawY = ((staticY + mapOffsetY) % skyCanvas.height + skyCanvas.height) % skyCanvas.height;
+                    
+                    skyCtx.beginPath();
+                    skyCtx.arc(drawX, drawY, 1, 0, Math.PI * 2);
+                    skyCtx.fill();
+                }
+
+                // Desenhar Objetos Celestiais Dinâmicos (Movidos pelo Touch ou Giroscópio)
+                celestialObjects.forEach(obj => {
+                    const finalX = centerX + obj.baseRelX + mapOffsetX;
+                    const finalY = centerY + obj.baseRelY + mapOffsetY;
+
+                    // Desenhar Aura Brilhante do Objeto
+                    let glow = skyCtx.createRadialGradient(finalX, finalY, 2, finalX, finalY, obj.radius * 3);
+                    glow.addColorStop(0, `rgba(${obj.baseR}, ${obj.baseG}, ${obj.baseB}, 1)`);
+                    glow.addColorStop(0.3, `rgba(${obj.baseR}, ${obj.baseG}, ${obj.baseB}, 0.4)`);
+                    glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+
+                    skyCtx.fillStyle = glow;
+                    skyCtx.beginPath();
+                    skyCtx.arc(finalX, finalY, obj.radius * 3, 0, Math.PI * 2);
+                    skyCtx.fill();
+
+                    // Núcleo central
+                    skyCtx.fillStyle = '#ffffff';
+                    skyCtx.beginPath();
+                    skyCtx.arc(finalX, finalY, obj.radius * 0.4, 0, Math.PI * 2);
+                    skyCtx.fill();
+
+                    // Anel Seletor se focado
+                    if (selectedObject === obj) {
+                        skyCtx.strokeStyle = '#6a7cff';
+                        skyCtx.lineWidth = 1.5;
+                        skyCtx.beginPath();
+                        skyCtx.arc(finalX, finalY, obj.radius * 1.5, 0, Math.PI * 2);
+                        skyCtx.stroke();
+                    }
+
+                    // Nome
+                    skyCtx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+                    skyCtx.font = '11px Space Grotesk';
+                    skyCtx.textAlign = 'center';
+                    skyCtx.fillText(obj.name, finalX, finalY - obj.radius - 12);
+                });
 
                 requestAnimationFrame(update);
             }
             update();
-        }
-
-        function drawNighttimeSky(centerX, centerY) {
-            // Desenhar Círculos Concêntricos de Orientação do visor
-            skyCtx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
-            skyCtx.lineWidth = 1;
-            for (let r = 50; r <= 350; r += 50) {
-                skyCtx.beginPath();
-                skyCtx.arc(centerX, centerY, r, 0, Math.PI * 2);
-                skyCtx.stroke();
-            }
-
-            // Cruz de Pontaria Central Estática
-            skyCtx.strokeStyle = 'rgba(99, 78, 255, 0.15)';
-            skyCtx.beginPath();
-            skyCtx.moveTo(centerX - 180, centerY);
-            skyCtx.lineTo(centerX + 180, centerY);
-            skyCtx.moveTo(centerX, centerY - 180);
-            skyCtx.lineTo(centerX, centerY + 180);
-            skyCtx.stroke();
-
-            // Desenhar Estrelas Secundárias Deslocáveis no Fundo do Visor
-            skyCtx.fillStyle = 'rgba(255,255,255,0.4)';
-            for (let i = 0; i < 40; i++) {
-                const staticX = (i * 97) % 600;
-                const staticY = (i * 149) % 600;
-                // Aplicar offsets de arrastamento com wrap-around
-                const drawX = ((staticX + mapOffsetX) % skyCanvas.width + skyCanvas.width) % skyCanvas.width;
-                const drawY = ((staticY + mapOffsetY) % skyCanvas.height + skyCanvas.height) % skyCanvas.height;
-                
-                skyCtx.beginPath();
-                skyCtx.arc(drawX, drawY, 1, 0, Math.PI * 2);
-                skyCtx.fill();
-            }
-
-            // Desenhar Objetos Celestiais Dinâmicos (Movidos pelo Touch ou Giroscópio)
-            celestialObjects.forEach(obj => {
-                const finalX = centerX + obj.baseRelX + mapOffsetX;
-                const finalY = centerY + obj.baseRelY + mapOffsetY;
-
-                // Desenhar Aura Brilhante do Objeto
-                let glow = skyCtx.createRadialGradient(finalX, finalY, 2, finalX, finalY, obj.radius * 3);
-                glow.addColorStop(0, `rgba(${obj.baseR}, ${obj.baseG}, ${obj.baseB}, 1)`);
-                glow.addColorStop(0.3, `rgba(${obj.baseR}, ${obj.baseG}, ${obj.baseB}, 0.4)`);
-                glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
-
-                skyCtx.fillStyle = glow;
-                skyCtx.beginPath();
-                skyCtx.arc(finalX, finalY, obj.radius * 3, 0, Math.PI * 2);
-                skyCtx.fill();
-
-                // Núcleo central
-                skyCtx.fillStyle = '#ffffff';
-                skyCtx.beginPath();
-                skyCtx.arc(finalX, finalY, obj.radius * 0.4, 0, Math.PI * 2);
-                skyCtx.fill();
-
-                // Anel Seletor se focado
-                if (selectedObject === obj) {
-                    skyCtx.strokeStyle = '#6a7cff';
-                    skyCtx.lineWidth = 1.5;
-                    skyCtx.beginPath();
-                    skyCtx.arc(finalX, finalY, obj.radius * 1.5, 0, Math.PI * 2);
-                    skyCtx.stroke();
-                }
-
-                // Nome
-                skyCtx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-                skyCtx.font = '11px Space Grotesk';
-                skyCtx.textAlign = 'center';
-                skyCtx.fillText(obj.name, finalX, finalY - obj.radius - 12);
-            });
-        }
-
-        function drawDaytimeSky(centerX, centerY) {
-            // Dispersão de Rayleigh simulada: fundo azul brilhante com gradiente
-            let sky = skyCtx.createLinearGradient(0, 0, 0, skyCanvas.height);
-            sky.addColorStop(0, '#3a86ff');
-            sky.addColorStop(0.5, '#7ec8ff');
-            sky.addColorStop(1, '#bfe4ff');
-            skyCtx.fillStyle = sky;
-            skyCtx.fillRect(0, 0, skyCanvas.width, skyCanvas.height);
-
-            // Halo de dispersão solar ao redor do Sol
-            const sunX = centerX + sunObject.baseRelX + mapOffsetX;
-            const sunY = centerY + sunObject.baseRelY + mapOffsetY;
-            let haze = skyCtx.createRadialGradient(sunX, sunY, 0, sunX, sunY, 260);
-            haze.addColorStop(0, 'rgba(255, 255, 240, 0.9)');
-            haze.addColorStop(0.25, 'rgba(255, 250, 210, 0.35)');
-            haze.addColorStop(1, 'rgba(255, 255, 255, 0)');
-            skyCtx.fillStyle = haze;
-            skyCtx.beginPath();
-            skyCtx.arc(sunX, sunY, 260, 0, Math.PI * 2);
-            skyCtx.fill();
-
-            // Disco solar
-            let sunGlow = skyCtx.createRadialGradient(sunX, sunY, 2, sunX, sunY, sunObject.radius * 2.2);
-            sunGlow.addColorStop(0, '#fff9e0');
-            sunGlow.addColorStop(0.5, 'rgba(255, 230, 120, 0.8)');
-            sunGlow.addColorStop(1, 'rgba(255, 230, 120, 0)');
-            skyCtx.fillStyle = sunGlow;
-            skyCtx.beginPath();
-            skyCtx.arc(sunX, sunY, sunObject.radius * 2.2, 0, Math.PI * 2);
-            skyCtx.fill();
-            skyCtx.fillStyle = '#fffef2';
-            skyCtx.beginPath();
-            skyCtx.arc(sunX, sunY, sunObject.radius * 0.6, 0, Math.PI * 2);
-            skyCtx.fill();
-            skyCtx.fillStyle = 'rgba(255,255,255,0.9)';
-            skyCtx.font = '11px Space Grotesk';
-            skyCtx.textAlign = 'center';
-            skyCtx.fillText('Sol', sunX, sunY - sunObject.radius - 14);
-
-            // Cruz de pontaria em tom mais escuro para contraste diurno
-            skyCtx.strokeStyle = 'rgba(20, 40, 70, 0.2)';
-            skyCtx.beginPath();
-            skyCtx.moveTo(centerX - 180, centerY);
-            skyCtx.lineTo(centerX + 180, centerY);
-            skyCtx.moveTo(centerX, centerY - 180);
-            skyCtx.lineTo(centerX, centerY + 180);
-            skyCtx.stroke();
-
-            // Constelações "invisíveis a olho nu" mas presentes de dia — desenhadas em contorno ténue
-            celestialObjects.forEach(obj => {
-                const finalX = centerX + obj.baseRelX + mapOffsetX;
-                const finalY = centerY + obj.baseRelY + mapOffsetY;
-
-                skyCtx.strokeStyle = 'rgba(255, 255, 255, 0.55)';
-                skyCtx.lineWidth = 1.5;
-                skyCtx.setLineDash([2, 3]);
-                skyCtx.beginPath();
-                skyCtx.arc(finalX, finalY, obj.radius * 1.3, 0, Math.PI * 2);
-                skyCtx.stroke();
-                skyCtx.setLineDash([]);
-
-                skyCtx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-                skyCtx.beginPath();
-                skyCtx.arc(finalX, finalY, obj.radius * 0.3, 0, Math.PI * 2);
-                skyCtx.fill();
-
-                if (selectedObject === obj) {
-                    skyCtx.strokeStyle = 'rgba(20, 40, 70, 0.6)';
-                    skyCtx.lineWidth = 1.5;
-                    skyCtx.beginPath();
-                    skyCtx.arc(finalX, finalY, obj.radius * 1.8, 0, Math.PI * 2);
-                    skyCtx.stroke();
-                }
-
-                skyCtx.fillStyle = 'rgba(20, 40, 70, 0.85)';
-                skyCtx.font = '11px Space Grotesk';
-                skyCtx.textAlign = 'center';
-                skyCtx.fillText(obj.name, finalX, finalY - obj.radius - 12);
-            });
         }
 
         function resizeSkyCanvas() {
@@ -1582,7 +1456,7 @@
             }
         }
 
-        // 3. ATIVAR GIROSCÓPIO FÍSICO REAL (S24 ULTRA) COM SUPORTE A LANDSCAPE/PORTRAIT
+        // 3. ATIVAR GIROSCÓPIO FÍSICO REAL (S24 ULTRA)
         function toggleRealGyroscope() {
             const btn = document.getElementById('btn-real-gyro');
             const badge = document.getElementById('gyro-status-badge');
@@ -1592,7 +1466,6 @@
                 btn.classList.remove('active');
                 badge.textContent = '• Modo Manual / Touch';
                 badge.style.color = 'var(--warning-color)';
-                window.removeEventListener('deviceorientation', handleMobileDeviceOrientation);
             } else {
                 // Verificar se o browser suporta orientação física
                 if (window.DeviceOrientationEvent) {
@@ -1623,44 +1496,8 @@
             document.getElementById('btn-mode-pointing').classList.remove('active');
             badge.textContent = '• Giroscópio Ativo (S24 Ultra)';
             badge.style.color = 'var(--success-color)';
-
-            updateScreenAngle();
+            
             window.addEventListener('deviceorientation', handleMobileDeviceOrientation);
-
-            // Manter o ângulo do ecrã atualizado ao rodar o telemóvel entre retrato e paisagem
-            if (window.screen && window.screen.orientation) {
-                window.screen.orientation.addEventListener('change', () => {
-                    updateScreenAngle();
-                    updateOrientationBadge();
-                });
-            } else {
-                window.addEventListener('orientationchange', () => {
-                    updateScreenAngle();
-                    updateOrientationBadge();
-                });
-            }
-            updateOrientationBadge();
-        }
-
-        // Deteta o ângulo atual do ecrã (0, 90, 180, 270) para portrait/landscape
-        function updateScreenAngle() {
-            if (window.screen && window.screen.orientation && typeof window.screen.orientation.angle === 'number') {
-                currentScreenAngle = window.screen.orientation.angle;
-            } else if (typeof window.orientation === 'number') {
-                // Fallback para browsers mais antigos (iOS Safari)
-                currentScreenAngle = ((window.orientation % 360) + 360) % 360;
-            } else {
-                currentScreenAngle = 0;
-            }
-        }
-
-        function updateOrientationBadge() {
-            const el = document.getElementById('orientation-status-badge');
-            if (!el) return;
-            const isLandscape = (currentScreenAngle === 90 || currentScreenAngle === 270);
-            el.textContent = isLandscape
-                ? `• Ecrã: Paisagem (${currentScreenAngle}°)`
-                : `• Ecrã: Retrato (${currentScreenAngle}°)`;
         }
 
         function handleMobileDeviceOrientation(event) {
@@ -1668,41 +1505,15 @@
 
             // beta: inclinação vertical (-180 a 180) -> Mapeia para Pitch / DEC
             // alpha: rotação bússola (0 a 360) -> Mapeia para Yaw / RA
-            // gamma: inclinação lateral (-90 a 90) -> usado para corrigir a rotação em landscape
-            let rawBeta = event.beta ? event.beta : 0;
-            let rawGamma = event.gamma ? event.gamma : 0;
+            const pitch = event.beta ? event.beta : 0;
             const yaw = event.alpha ? event.alpha : 0;
-
-            // Corrigir o mapeamento pitch/roll de acordo com o ângulo físico do ecrã.
-            // Quando o telemóvel está deitado (90° ou 270°), os eixos beta/gamma trocam de papel,
-            // por isso usamos o ângulo do ecrã para reconstruir o "pitch" real e evitar desvios.
-            let correctedPitch;
-            switch (currentScreenAngle) {
-                case 90:
-                    // Deitado com o topo para a esquerda
-                    correctedPitch = rawGamma;
-                    break;
-                case 270:
-                case -90:
-                    // Deitado com o topo para a direita
-                    correctedPitch = -rawGamma;
-                    break;
-                case 180:
-                    // De pernas para o ar
-                    correctedPitch = -rawBeta;
-                    break;
-                default:
-                    // Retrato normal (0°)
-                    correctedPitch = rawBeta;
-                    break;
-            }
 
             // Mover o mapa celeste diretamente de acordo com a rotação física do S24!
             mapOffsetX = -(yaw * 2);
-            mapOffsetY = -(correctedPitch * 2);
+            mapOffsetY = -(pitch * 2);
 
             // Atualizar valores do HUD com dados reais dos sensores físicos
-            document.getElementById('hud-dec').textContent = `+${(correctedPitch + 23.412).toFixed(3)}°`;
+            document.getElementById('hud-dec').textContent = `+${(pitch + 23.412).toFixed(3)}°`;
             const raHours = Math.floor(yaw / 15);
             const raMins = Math.floor((yaw % 15) * 4);
             document.getElementById('hud-ra').textContent = `${raHours}h ${raMins}m 12s`;
@@ -1918,80 +1729,104 @@
             }
         }
 
-        // 8. ACESSO REAL À CÂMARA (REALIDADE AUMENTADA)
-        async function toggleARCamera() {
-            const btn = document.getElementById('btn-ar-camera');
-            const video = document.getElementById('ar-camera-feed');
+        // 8. INTEGRAÇÃO DA IA GEMINI COM RETRY EXPONENCIAL
+        const apiKey = ""; 
 
-            if (arCameraActive) {
-                stopARCamera();
-                return;
+        function toggleAIPanel() {
+            const panel = document.getElementById('ai-panel');
+            if (panel.style.display === 'flex') {
+                panel.style.display = 'none';
+            } else {
+                panel.style.display = 'flex';
+                document.getElementById('ai-user-input').focus();
             }
+        }
 
-            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                alert("O acesso à câmara não é suportado neste navegador.");
-                return;
+        function handleAIKeyPress(e) {
+            if (e.key === 'Enter') {
+                sendToAI();
             }
+        }
+
+        async function sendToAI() {
+            const inputEl = document.getElementById('ai-user-input');
+            const message = inputEl.value.trim();
+            if (!message) return;
+
+            appendMessage(message, 'user');
+            inputEl.value = '';
+
+            const loadingId = appendMessage('Consultando banco de dados de IA...', 'assistant');
 
             try {
-                btn.textContent = '';
-                btn.innerHTML = '<i data-lucide="loader" style="width:14px;"></i> A pedir acesso...';
-                try { lucide.createIcons(); } catch(e) {}
-
-                arCameraStream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: { ideal: "environment" } },
-                    audio: false
-                });
-
-                video.srcObject = arCameraStream;
-                video.style.display = 'block';
-                arCameraActive = true;
-
-                btn.classList.add('active');
-                btn.innerHTML = '<i data-lucide="camera-off" style="width:14px;"></i> Desativar Câmara';
-                try { lucide.createIcons(); } catch(e) {}
-
-                // Deixar o mapa de estrelas transparente por cima do vídeo real
-                skyCanvas.style.background = 'transparent';
-
+                const reply = await callGeminiAPI(message);
+                updateMessage(loadingId, reply);
             } catch (err) {
-                console.error("Erro ao aceder à câmara:", err);
-                alert("Não foi possível aceder à câmara traseira. Verifique as permissões do navegador.");
-                btn.innerHTML = '<i data-lucide="camera" style="width:14px;"></i> Ativar Câmara';
-                try { lucide.createIcons(); } catch(e) {}
+                updateMessage(loadingId, "A conexão com a inteligência artificial falhou. Certifique-se de que está ligado à internet!");
             }
         }
 
-        function stopARCamera() {
-            const btn = document.getElementById('btn-ar-camera');
-            const video = document.getElementById('ar-camera-feed');
-
-            if (arCameraStream) {
-                arCameraStream.getTracks().forEach(track => track.stop());
-                arCameraStream = null;
-            }
-            video.srcObject = null;
-            video.style.display = 'none';
-            arCameraActive = false;
-
-            btn.classList.remove('active');
-            btn.innerHTML = '<i data-lucide="camera" style="width:14px;"></i> Ativar Câmara';
-            try { lucide.createIcons(); } catch(e) {}
+        function appendMessage(text, role) {
+            const container = document.getElementById('ai-messages');
+            const messageEl = document.createElement('div');
+            const messageId = 'msg-' + Date.now();
+            messageEl.id = messageId;
+            messageEl.className = `ai-message ${role}`;
+            messageEl.textContent = text;
+            container.appendChild(messageEl);
+            container.scrollTop = container.scrollHeight;
+            return messageId;
         }
 
-        // 9. MODO DIA & NOITE
-        function toggleDayNight() {
-            isDayMode = !isDayMode;
-            const btn = document.getElementById('btn-day-night');
-
-            if (isDayMode) {
-                btn.classList.add('day-mode-active');
-                btn.innerHTML = '<i data-lucide="sun" style="width:14px;"></i> Modo Dia';
-            } else {
-                btn.classList.remove('day-mode-active');
-                btn.innerHTML = '<i data-lucide="moon" style="width:14px;"></i> Modo Noite';
+        function updateMessage(id, newText) {
+            const messageEl = document.getElementById(id);
+            if (messageEl) {
+                messageEl.textContent = newText;
+                const container = document.getElementById('ai-messages');
+                container.scrollTop = container.scrollHeight;
             }
-            try { lucide.createIcons(); } catch(e) {}
+        }
+
+        async function callGeminiAPI(userQuery) {
+            const systemPrompt = "Você é a Zorya-AI, especialista em redes de telescópios distribuídos e astrofísica. Responda em português, de forma concisa e técnica, limitando-se a um máximo de 4 linhas.";
+            const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+            
+            const payload = {
+                contents: [{ parts: [{ text: userQuery }] }],
+                systemInstruction: { parts: [{ text: systemPrompt }] }
+            };
+
+            const maxRetries = 5;
+            let attempt = 0;
+
+            while (attempt < maxRetries) {
+                try {
+                    const response = await fetch(endpoint, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`Erro HTTP: ${response.status}`);
+                    }
+
+                    const data = await response.json();
+                    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+                    if (text) {
+                        return text;
+                    } else {
+                        throw new Error("Formato inválido.");
+                    }
+                } catch (error) {
+                    attempt++;
+                    if (attempt >= maxRetries) {
+                        throw error;
+                    }
+                    const delay = Math.pow(2, attempt) * 1000;
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                }
+            }
         }
 
         // Modais Extras
